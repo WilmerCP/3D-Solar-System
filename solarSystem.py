@@ -1,0 +1,261 @@
+from pygame.locals import *
+import pygame
+from OpenGL.GL import *
+import numpy as np
+
+import geometry
+import utility
+import time
+import math
+from planet import Planet
+from planet import Sun
+
+def create_shader_program(vertex_shader_source, fragment_shader_source):
+    # Create a OpenGL program and shaders
+    program = glCreateProgram()
+    vertex_shader = glCreateShader(GL_VERTEX_SHADER)
+    fragment_shader = glCreateShader(GL_FRAGMENT_SHADER)
+
+    # Set shader source code
+    glShaderSource(vertex_shader, vertex_shader_source)
+    glShaderSource(fragment_shader, fragment_shader_source)
+
+    # Compile shaders
+
+    glCompileShader(vertex_shader)
+    if not glGetShaderiv(vertex_shader, GL_COMPILE_STATUS):
+        error = glGetShaderInfoLog(vertex_shader).decode()
+        print("Vertex shader compilation error:", error)
+        raise RuntimeError("Vertex shader compilation failed")
+    glCompileShader(fragment_shader)
+    if not glGetShaderiv(fragment_shader, GL_COMPILE_STATUS):
+        error = glGetShaderInfoLog(fragment_shader).decode()
+        print("Fragment shader compilation error:", error)
+        raise RuntimeError("Fragment shader compilation failed")
+    # Link shaders to the program
+
+    glAttachShader(program, vertex_shader)
+    glAttachShader(program, fragment_shader)
+    # Link the program
+    glLinkProgram(program)
+
+    if not glGetProgramiv(program,GL_LINK_STATUS):
+        print(glGetProgramInfoLog(program))
+        raise RuntimeError('Linking error')
+
+    # Get rid of the shaders 
+    glDetachShader(program, vertex_shader)
+    glDetachShader(program, fragment_shader)
+
+    #Set the default program for usage
+    glUseProgram(program)
+    return program
+
+def setup_buffer(program,data,index_data):
+
+    vao = glGenVertexArrays(1)
+    glBindVertexArray(vao)
+
+    #Request buffer slot from GPU and set as current
+    buffer = glGenBuffers(1)
+    glBindBuffer(GL_ARRAY_BUFFER, buffer)
+
+    # Upload data to GPU
+    # numpy provides the size in bytes of the array with nbytes
+    glBufferData(GL_ARRAY_BUFFER,data.nbytes,data,GL_DYNAMIC_DRAW)
+
+    stride = 3*4
+    #offset for position is 0
+    offset = ctypes.c_void_p(0)
+    # Find the location for "position" and enable it
+    loc = glGetAttribLocation(program, "position")
+    glEnableVertexAttribArray(loc)
+    #tell OpenGL how to interpret the position attribute
+    glVertexAttribPointer(loc, 3, GL_FLOAT, False, stride, offset)
+
+    EBO = glGenBuffers(1)
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO)
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_data.nbytes, index_data, GL_STATIC_DRAW)
+
+    glBindVertexArray(0)
+    return vao
+
+def setup_program_uniforms(program,view_matrix,projection_matrix,model_matrix):
+
+    glUseProgram(program)
+
+    view_loc = glGetUniformLocation(program, "view")
+    glUniformMatrix4fv(view_loc, 1, GL_FALSE, view_matrix.T)
+
+    projection_loc = glGetUniformLocation(program, "projection")
+    glUniformMatrix4fv(projection_loc, 1, GL_FALSE, projection_matrix.T)
+
+    model_loc = glGetUniformLocation(program, "model")
+    glUniformMatrix4fv(model_loc, 1, GL_FALSE, model_matrix.T)
+
+def draw_planet(program,object,delta_time):
+        #Use the sphere program
+        glUseProgram(program)
+
+        object.update(delta_time)
+
+        glBindVertexArray(object.vao)
+        model_loc = glGetUniformLocation(program, "model")
+
+        model_matrix = object.get_model_matrix()
+        glUniformMatrix4fv(model_loc, 1, GL_FALSE, model_matrix.T)
+
+        object.update_uniforms(program)
+
+        indices_per_strip = (geometry.SECTORS + 1) * 2
+
+        offset = 0
+        for i in range(geometry.STACKS):
+            glDrawElements(GL_TRIANGLE_STRIP,indices_per_strip,GL_UNSIGNED_INT,ctypes.c_void_p(offset * 4))
+            offset += indices_per_strip
+
+        glBindVertexArray(0)
+
+def main():
+    last_time = time.time()
+
+    # Vertex shader with color source code
+    vertex_shader_source = utility.load_shader_source("shaders/planet_vertex.glsl")
+    # Fragment shader with color source code
+    fragment_shader_source = utility.load_shader_source("shaders/planet_fragment.glsl")
+
+    sun_vertex = utility.load_shader_source("shaders/sun_vertex.glsl")
+    sun_fragment = utility.load_shader_source("shaders/sun_fragment.glsl")
+
+    pygame.init()
+    pygame.display.set_mode((800, 600), DOUBLEBUF | OPENGL)
+    pygame.display.set_caption("Solar System Simulation")
+
+    glEnable(GL_DEPTH_TEST)      # Enable depth testing
+    glDepthFunc(GL_LESS)    # Specify depth test function
+
+    program = create_shader_program(vertex_shader_source, fragment_shader_source)
+    program_sun = create_shader_program(sun_vertex, sun_fragment)
+
+    # Build vertex data for a sphere
+    data = geometry.get_sphere_vertices()
+
+    index_data = geometry.get_sphere_indices()
+
+    vao_planet = setup_buffer(program, data,index_data)
+    vao_sun = setup_buffer(program_sun, data,index_data)
+
+    aspect = 800 / 600
+    view_matrix = geometry.get_view_matrix(50,15)
+    projection_matrix = geometry.get_projection_matrix(math.radians(45), aspect, 0.1, 150.0)
+    model_matrix = np.identity(4)
+
+    setup_program_uniforms(program,view_matrix,projection_matrix,model_matrix)
+    setup_program_uniforms(program_sun,view_matrix,projection_matrix,model_matrix)
+
+    #Create planets
+
+    sun = Sun("Sun", radius=5.0, spin_speed=math.radians(20))
+    sun.vao = vao_sun
+
+    earth = Planet("Earth", radius=1.3,
+             color_left=np.array([0.0, 0.2, 0.8]),
+             color_right=np.array([0.0, 0.8, 0.2]),
+             orbit_radius=18.0,
+             orbit_speed=1,
+             spin_speed=1.8)
+    earth.vao = vao_planet
+    earth.orbit_angle = math.radians(0)
+
+    mercury = Planet("Mercury", radius=0.5,
+             color_left=np.array([0.7, 0.7, 0.6]),
+             color_right=np.array([0.5, 0.4, 0.3]),
+             orbit_radius=12.0,
+             orbit_speed=3.0,
+             spin_speed=2)
+    mercury.vao = vao_planet
+    mercury.orbit_angle = math.radians(20)
+
+    venus = Planet("Venus", radius=1.2,
+             color_left=np.array([0.95, 0.85, 0.55]),
+             color_right=np.array([0.9, 0.75, 0.35]),
+             orbit_radius=15.6,
+             orbit_speed=1.62,
+             spin_speed=-1.5)
+    venus.vao = vao_planet
+    venus.orbit_angle = math.radians(180)
+
+    mars = Planet("Mars", radius=1.0,
+             color_left=np.array([0.85, 0.45, 0.25]),
+             color_right=np.array([0.6, 0.3, 0.18]),
+             orbit_radius=21.0,
+             orbit_speed=0.73,
+             spin_speed=3.1)
+    mars.vao = vao_planet
+    mars.orbit_angle = math.radians(100)
+
+    jupiter = Planet("Jupiter", radius=3.0,
+             color_left=np.array([0.95, 0.85, 0.65]),
+             color_right=np.array([0.85, 0.55, 0.25]),
+             orbit_radius=24.0,
+             orbit_speed=0.06,
+             spin_speed=4)
+    jupiter.vao = vao_planet
+    jupiter.orbit_angle = math.radians(270)
+
+    saturn = Planet("Saturn", radius=2.5,
+             color_left=np.array([0.95, 0.90, 0.70]),
+             color_right=np.array([0.85, 0.75, 0.45]),
+             orbit_radius=29.0,
+             orbit_speed=0.18,
+             spin_speed=9)
+    saturn.vao = vao_planet
+    saturn.orbit_angle = math.radians(200)
+
+    uranus = Planet("Uranus", radius=1.7,
+             color_left=np.array([0.65, 0.85, 0.95]),
+             color_right=np.array([0.45, 0.75, 0.95]),
+             orbit_radius=35.0,
+             orbit_speed=0.1,
+             spin_speed=-8)
+    uranus.vao = vao_planet
+    uranus.orbit_angle = math.radians(90)
+
+    neptune = Planet("Neptune", radius=1.6,
+             color_left=np.array([0.35, 0.55, 0.95]),
+             color_right=np.array([0.25, 0.35, 0.75]),
+             orbit_radius=40.0,
+             orbit_speed=0.08,
+             spin_speed=8.0)
+    neptune.vao = vao_planet
+    neptune.orbit_angle = math.radians(140)
+
+    planets = [mercury,venus,earth,mars,jupiter,saturn,uranus,neptune]
+
+    while True:
+
+        current_time = time.time()
+        delta_time = current_time - last_time
+        last_time = current_time
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
+
+        
+        
+        #Clear the screen
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+        draw_planet(program_sun,sun,delta_time)
+
+        for p in planets:
+            draw_planet(program,p,delta_time)
+
+        pygame.display.flip() # Flip the display buffers
+    
+        pygame.time.wait(10)# 10 ms delay
+
+if __name__ == "__main__":
+    main()

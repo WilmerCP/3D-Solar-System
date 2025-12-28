@@ -9,6 +9,7 @@ import time
 import math
 from planet import Planet
 from planet import Sun
+from planet import TexturedPlanet
 
 def create_shader_program(vertex_shader_source, fragment_shader_source):
     # Create a OpenGL program and shaders
@@ -93,19 +94,19 @@ def setup_program_uniforms(program,view_matrix,projection_matrix,model_matrix):
     model_loc = glGetUniformLocation(program, "model")
     glUniformMatrix4fv(model_loc, 1, GL_FALSE, model_matrix.T)
 
-def draw_planet(program,object,delta_time):
+def draw_planet(object,delta_time):
         #Use the sphere program
-        glUseProgram(program)
+        glUseProgram(object.program)
 
         object.update(delta_time)
 
         glBindVertexArray(object.vao)
-        model_loc = glGetUniformLocation(program, "model")
+        model_loc = glGetUniformLocation(object.program, "model")
 
         model_matrix = object.get_model_matrix()
         glUniformMatrix4fv(model_loc, 1, GL_FALSE, model_matrix.T)
 
-        object.update_uniforms(program)
+        object.update_uniforms()
 
         indices_per_strip = (geometry.SECTORS + 1) * 2
 
@@ -127,6 +128,9 @@ def main():
     sun_vertex = utility.load_shader_source("shaders/sun_vertex.glsl")
     sun_fragment = utility.load_shader_source("shaders/sun_fragment.glsl")
 
+    textured_vertex = utility.load_shader_source("shaders/textured_vertex.glsl")
+    textured_fragment = utility.load_shader_source("shaders/textured_fragment.glsl")
+
     pygame.init()
     pygame.display.set_mode((800, 600), DOUBLEBUF | OPENGL)
     pygame.display.set_caption("Solar System Simulation")
@@ -136,6 +140,7 @@ def main():
 
     program = create_shader_program(vertex_shader_source, fragment_shader_source)
     program_sun = create_shader_program(sun_vertex, sun_fragment)
+    program_textured = create_shader_program(textured_vertex,textured_fragment)
 
     # Build vertex data for a sphere
     data = geometry.get_sphere_vertices()
@@ -152,20 +157,26 @@ def main():
 
     setup_program_uniforms(program,view_matrix,projection_matrix,model_matrix)
     setup_program_uniforms(program_sun,view_matrix,projection_matrix,model_matrix)
+    setup_program_uniforms(program_textured,view_matrix,projection_matrix,model_matrix)
 
     #Create planets
 
     sun = Sun("Sun", radius=5.0, spin_speed=math.radians(20))
     sun.vao = vao_sun
+    sun.program = program_sun
 
-    earth = Planet("Earth", radius=1.3,
-             color_left=np.array([0.0, 0.2, 0.8]),
-             color_right=np.array([0.0, 0.8, 0.2]),
+    earth = TexturedPlanet("Earth", radius=1.3,
              orbit_radius=18.0,
              orbit_speed=1,
              spin_speed=1.8)
     earth.vao = vao_planet
     earth.orbit_angle = math.radians(0)
+    earth.program = program_textured
+
+    texture_id = utility.load_texture("textures/flat_earth.jpg")
+    glActiveTexture(GL_TEXTURE0)
+    glBindTexture(GL_TEXTURE_2D, texture_id)
+    earth.texture_unit = 0
 
     mercury = Planet("Mercury", radius=0.5,
              color_left=np.array([0.7, 0.7, 0.6]),
@@ -175,6 +186,7 @@ def main():
              spin_speed=2)
     mercury.vao = vao_planet
     mercury.orbit_angle = math.radians(20)
+    mercury.program = program
 
     venus = Planet("Venus", radius=1.2,
              color_left=np.array([0.95, 0.85, 0.55]),
@@ -184,6 +196,7 @@ def main():
              spin_speed=-1.5)
     venus.vao = vao_planet
     venus.orbit_angle = math.radians(180)
+    venus.program = program
 
     mars = Planet("Mars", radius=1.0,
              color_left=np.array([0.85, 0.45, 0.25]),
@@ -193,6 +206,7 @@ def main():
              spin_speed=3.1)
     mars.vao = vao_planet
     mars.orbit_angle = math.radians(100)
+    mars.program = program
 
     jupiter = Planet("Jupiter", radius=3.0,
              color_left=np.array([0.95, 0.85, 0.65]),
@@ -202,6 +216,7 @@ def main():
              spin_speed=4)
     jupiter.vao = vao_planet
     jupiter.orbit_angle = math.radians(270)
+    jupiter.program = program
 
     saturn = Planet("Saturn", radius=2.5,
              color_left=np.array([0.95, 0.90, 0.70]),
@@ -211,6 +226,7 @@ def main():
              spin_speed=9)
     saturn.vao = vao_planet
     saturn.orbit_angle = math.radians(200)
+    saturn.program = program
 
     uranus = Planet("Uranus", radius=1.7,
              color_left=np.array([0.65, 0.85, 0.95]),
@@ -220,6 +236,7 @@ def main():
              spin_speed=-8)
     uranus.vao = vao_planet
     uranus.orbit_angle = math.radians(90)
+    uranus.program = program
 
     neptune = Planet("Neptune", radius=1.6,
              color_left=np.array([0.35, 0.55, 0.95]),
@@ -229,8 +246,9 @@ def main():
              spin_speed=8.0)
     neptune.vao = vao_planet
     neptune.orbit_angle = math.radians(140)
+    neptune.program = program
 
-    planets = [mercury,venus,earth,mars,jupiter,saturn,uranus,neptune]
+    planets = [sun,earth,mercury,venus,mars,jupiter,saturn,uranus,neptune]
 
     while True:
 
@@ -248,10 +266,8 @@ def main():
         #Clear the screen
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
-        draw_planet(program_sun,sun,delta_time)
-
         for p in planets:
-            draw_planet(program,p,delta_time)
+            draw_planet(p,delta_time)
 
         pygame.display.flip() # Flip the display buffers
     

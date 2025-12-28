@@ -19,6 +19,7 @@ class Planet:
         self.color_left = color_left
         self.color_right = color_right
         self.vao = None
+        self.program = None
 
         # Current angles for orbit and spin
         self.orbit_angle = 0.0
@@ -64,14 +65,14 @@ class Planet:
         model = T @ R @ S
         return model
     
-    def update_uniforms(self, shader_program):
+    def update_uniforms(self):
         """
         Update the shader uniforms for this planet.
         Assumes shader_program is bound.
         """
         # Colors
-        color_left_loc = glGetUniformLocation(shader_program, "color_left")
-        color_right_loc = glGetUniformLocation(shader_program, "color_right")
+        color_left_loc = glGetUniformLocation(self.program, "color_left")
+        color_right_loc = glGetUniformLocation(self.program, "color_right")
 
         glUniform3fv(color_left_loc, 1, self.color_left)
         glUniform3fv(color_right_loc, 1, self.color_right)
@@ -81,6 +82,20 @@ class Sun(Planet):
         super().__init__(name, radius, orbit_radius, orbit_speed, spin_speed)
         
 
-    def update_uniforms(self, shader_program):
-        time_loc = glGetUniformLocation(shader_program, "time")
+    def update_uniforms(self):
+        time_loc = glGetUniformLocation(self.program, "time")
         glUniform1f(time_loc,self.time)
+
+class TexturedPlanet(Planet):
+    def __init__(self, name, radius=1.0, orbit_radius=0.0, orbit_speed=0.0, spin_speed=0.0):
+        super().__init__(name, radius, orbit_radius, orbit_speed, spin_speed)
+
+        self.texture_unit = None
+        
+
+    def update_uniforms(self):
+        #time_loc = glGetUniformLocation(shader_program, "time")
+        #glUniform1f(time_loc,self.time)
+
+        uTexture_loc = glGetUniformLocation(self.program, "texture")
+        glUniform1i(uTexture_loc, self.texture_unit)

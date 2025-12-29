@@ -80,3 +80,12 @@ def get_background_vertices():
          1.0,  1.0, 0.0
     ]
     return np.array(vertices, dtype=np.float32)
+
+def get_orbit_ring_vertices(radius, segments=100):
+    vertices = []
+    for i in range(segments + 1):
+        angle = 2 * np.pi * i / segments
+        x = radius * np.cos(angle)
+        z = radius * np.sin(angle)
+        vertices.extend([x, 0.0, z])
+    return np.array(vertices, dtype=np.float32)

@@ -91,11 +91,15 @@ class TexturedPlanet(Planet):
         super().__init__(name, radius, orbit_radius, orbit_speed, spin_speed)
 
         self.texture_unit = None
+        self.texture_id = None
         
 
     def update_uniforms(self):
         #time_loc = glGetUniformLocation(shader_program, "time")
         #glUniform1f(time_loc,self.time)
+
+        glActiveTexture(GL_TEXTURE0 + self.texture_unit)
+        glBindTexture(GL_TEXTURE_2D, self.texture_id)  # texture_id must be the correct OpenGL texture handle
 
         uTexture_loc = glGetUniformLocation(self.program, "texture")
         glUniform1i(uTexture_loc, self.texture_unit)

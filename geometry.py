@@ -71,3 +71,12 @@ def get_model_matrix():
         [0,     0,     0,     1]
     ], dtype=np.float32)
     return model
+
+def get_background_vertices():
+    vertices = [
+        -1.0,  1.0, 0.0,
+        -1.0, -1.0, 0.0,
+         1.0, -1.0, 0.0,
+         1.0,  1.0, 0.0
+    ]
+    return np.array(vertices, dtype=np.float32)

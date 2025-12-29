@@ -26,6 +26,8 @@ class SolarSystemGL(QOpenGLWidget):
         self.camera_distance = 80
         self.camera_pitch = 15
         self.aspect = 800 / 600
+        self.program_background = None
+        self.background_vao = None
 
     def keyPressEvent(self, event):
 
@@ -122,9 +124,10 @@ class SolarSystemGL(QOpenGLWidget):
         #tell OpenGL how to interpret the position attribute
         glVertexAttribPointer(loc, 3, GL_FLOAT, False, stride, offset)
 
-        EBO = glGenBuffers(1)
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO)
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_data.nbytes, index_data, GL_STATIC_DRAW)
+        if index_data is not None:
+            EBO = glGenBuffers(1)
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO)
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_data.nbytes, index_data, GL_STATIC_DRAW)
 
         glBindVertexArray(0)
         return vao
@@ -142,6 +145,19 @@ class SolarSystemGL(QOpenGLWidget):
 
         model_loc = glGetUniformLocation(program, "model")
         glUniformMatrix4fv(model_loc, 1, GL_FALSE, model_matrix.T)
+
+    def paint_background(self):
+        glDepthMask(GL_FALSE)
+        glUseProgram(self.program_background)
+        glBindVertexArray(self.background_vao)
+        glActiveTexture(GL_TEXTURE1)
+        glBindTexture(GL_TEXTURE_2D, self.texture_bg)
+        bg_texture_loc = glGetUniformLocation(self.program_background, "bgTexture")
+        glUniform1i(bg_texture_loc, 1)
+
+        glDrawArrays(GL_TRIANGLE_FAN, 0, 4)
+        glBindVertexArray(0)
+        glDepthMask(GL_TRUE)
 
     @staticmethod
     def draw_planet(object,delta_time):
@@ -184,12 +200,26 @@ class SolarSystemGL(QOpenGLWidget):
         textured_vertex = utility.load_shader_source("shaders/textured_vertex.glsl")
         textured_fragment = utility.load_shader_source("shaders/textured_fragment.glsl")
 
+        background_vertex = utility.load_shader_source("shaders/bg_vertex.glsl")
+        background_fragment = utility.load_shader_source("shaders/bg_fragment.glsl")
+
+        background_vertices = geometry.get_background_vertices()
+
         glEnable(GL_DEPTH_TEST)      # Enable depth testing
         glDepthFunc(GL_LESS)    # Specify depth test function
 
         program = self.create_shader_program(vertex_shader_source, fragment_shader_source)
         program_sun = self.create_shader_program(sun_vertex, sun_fragment)
         program_textured = self.create_shader_program(textured_vertex,textured_fragment)
+
+        self.program_background = self.create_shader_program(background_vertex,background_fragment)
+        self.background_vao = self.setup_buffer(self.program_background, background_vertices, None)
+
+        self.texture_bg = utility.load_texture_qt("textures/space.jpg")
+        glActiveTexture(GL_TEXTURE1)
+        glBindTexture(GL_TEXTURE_2D, self.texture_bg)
+        bg_texture_loc = glGetUniformLocation(self.program_background, "bgTexture")
+        glUniform1i(bg_texture_loc, 1)
 
         # Build vertex data for a sphere
         data = geometry.get_sphere_vertices()
@@ -321,6 +351,8 @@ class SolarSystemGL(QOpenGLWidget):
         
         #Clear the screen
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+        self.paint_background()
 
         for p in self.planets:
             self.draw_planet(p,delta_time)

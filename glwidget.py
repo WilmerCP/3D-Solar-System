@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QOpenGLWidget
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, Qt
 from OpenGL.GL import *
 import numpy as np
 import time
@@ -16,11 +16,46 @@ class SolarSystemGL(QOpenGLWidget):
         super().__init__(parent)
 
         self.start_time = time.time()
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.setFocus() 
 
         # Timer → drives animation
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update)
         self.timer.start(16)  # ~60 FPS
+        self.camera_distance = 80
+        self.camera_pitch = 15
+        self.aspect = 800 / 600
+
+    def keyPressEvent(self, event):
+
+        if event.key() == Qt.Key_W:
+            self.camera_distance -= 1  # Move closer
+        elif event.key() == Qt.Key_S:
+            self.camera_distance += 1  # Move farther
+        elif event.key() == Qt.Key_Up:
+            self.camera_pitch += 1     # Look up
+        elif event.key() == Qt.Key_Down:
+            self.camera_pitch -= 1     # Look down
+        elif event.key() == Qt.Key_Escape:
+            self.close()
+
+        # Clamp camera distance to avoid going through the scene
+        self.camera_distance = max(10, min(self.camera_distance, 200))
+        self.camera_pitch = max(-89, min(self.camera_pitch, 89)) 
+        
+        view_matrix = geometry.get_view_matrix(self.camera_distance, self.camera_pitch)
+        projection_matrix = geometry.get_projection_matrix(
+            math.radians(45), self.aspect, 0.1, 150.0
+        )
+        model_matrix = np.identity(4)
+
+        # Update all programs' uniforms
+     
+        for p in self.planets:
+            self.setup_program_uniforms(p.program, view_matrix, projection_matrix, model_matrix)
+
+        self.update()  # Request a redraw
 
     @staticmethod
     def create_shader_program(vertex_shader_source, fragment_shader_source):
@@ -164,9 +199,8 @@ class SolarSystemGL(QOpenGLWidget):
         vao_planet = self.setup_buffer(program, data,index_data)
         vao_sun = self.setup_buffer(program_sun, data,index_data)
 
-        aspect = 800 / 600
         view_matrix = geometry.get_view_matrix(80,15)
-        projection_matrix = geometry.get_projection_matrix(math.radians(45), aspect, 0.1, 150.0)
+        projection_matrix = geometry.get_projection_matrix(math.radians(45), self.aspect, 0.1, 150.0)
         model_matrix = np.identity(4)
 
         self.setup_program_uniforms(program,view_matrix,projection_matrix,model_matrix)
@@ -186,6 +220,13 @@ class SolarSystemGL(QOpenGLWidget):
         earth.vao = vao_planet
         earth.orbit_angle = math.radians(0)
         earth.program = program_textured
+
+        moon = Planet("Moon", radius=0.27, orbit_radius=2.0, orbit_speed=2.0, parent=earth,    
+                color_left=np.array([0.8, 0.8, 0.78]),
+                color_right=np.array([0.6, 0.6, 0.58]),)
+        moon.vao = vao_planet
+        moon.orbit_angle = math.radians(0)
+        moon.program = program
 
         texture_id = utility.load_texture_qt("textures/flat_earth.jpg")
         glActiveTexture(GL_TEXTURE0)
@@ -216,7 +257,7 @@ class SolarSystemGL(QOpenGLWidget):
         mars = Planet("Mars", radius=1.0,
                 color_left=np.array([0.85, 0.45, 0.25]),
                 color_right=np.array([0.6, 0.3, 0.18]),
-                orbit_radius=21.0,
+                orbit_radius=23.0,
                 orbit_speed=0.73,
                 spin_speed=3.1)
         mars.vao = vao_planet
@@ -226,7 +267,7 @@ class SolarSystemGL(QOpenGLWidget):
         jupiter = Planet("Jupiter", radius=3.0,
                 color_left=np.array([0.95, 0.85, 0.65]),
                 color_right=np.array([0.85, 0.55, 0.25]),
-                orbit_radius=24.0,
+                orbit_radius=25.0,
                 orbit_speed=0.06,
                 spin_speed=4)
         jupiter.vao = vao_planet
@@ -236,7 +277,7 @@ class SolarSystemGL(QOpenGLWidget):
         saturn = Planet("Saturn", radius=2.5,
                 color_left=np.array([0.95, 0.90, 0.70]),
                 color_right=np.array([0.85, 0.75, 0.45]),
-                orbit_radius=29.0,
+                orbit_radius=31.0,
                 orbit_speed=0.18,
                 spin_speed=9)
         saturn.vao = vao_planet
@@ -246,7 +287,7 @@ class SolarSystemGL(QOpenGLWidget):
         uranus = Planet("Uranus", radius=1.7,
                 color_left=np.array([0.65, 0.85, 0.95]),
                 color_right=np.array([0.45, 0.75, 0.95]),
-                orbit_radius=35.0,
+                orbit_radius=36.0,
                 orbit_speed=0.1,
                 spin_speed=-8)
         uranus.vao = vao_planet
@@ -256,14 +297,14 @@ class SolarSystemGL(QOpenGLWidget):
         neptune = Planet("Neptune", radius=1.6,
                 color_left=np.array([0.35, 0.55, 0.95]),
                 color_right=np.array([0.25, 0.35, 0.75]),
-                orbit_radius=40.0,
+                orbit_radius=42.0,
                 orbit_speed=0.08,
                 spin_speed=8.0)
         neptune.vao = vao_planet
         neptune.orbit_angle = math.radians(140)
         neptune.program = program
 
-        self.planets = [sun,earth,mercury,venus,mars,jupiter,saturn,uranus,neptune]
+        self.planets = [sun,earth,moon,mercury,venus,mars,jupiter,saturn,uranus,neptune]
 
 
     def resizeGL(self, w, h):

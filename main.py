@@ -18,6 +18,9 @@ class Window(QtWidgets.QMainWindow):
         self.change_page(self.ui.start_page)
         self.setWindowTitle(title)
 
+        pixmap = QtGui.QPixmap("textures/ibu.png")  # Use your actual image path
+        self.ui.logo_label.setPixmap(pixmap)
+        self.ui.logo_label.setScaledContents(False)
 
         self.connect_buttons()
 

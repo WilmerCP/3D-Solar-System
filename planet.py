@@ -10,6 +10,7 @@ class Planet:
                  spin_speed: float = 0.0,
                  color_left: np.ndarray = np.array([1.0, 1.0, 0.0]),   # horizontal gradient start
                  color_right: np.ndarray = np.array([1.0, 0.5, 0.0]),  # vertical gradient bright
+                 parent: 'Planet' = None 
                  ):
         self.name = name
         self.radius = radius
@@ -20,6 +21,7 @@ class Planet:
         self.color_right = color_right
         self.vao = None
         self.program = None
+        self.parent = parent 
 
         # Current angles for orbit and spin
         self.orbit_angle = 0.0
@@ -37,7 +39,13 @@ class Planet:
         # Update planet position based on orbit
         x = self.orbit_radius * np.cos(self.orbit_angle)
         z = self.orbit_radius * np.sin(self.orbit_angle)
-        self.position = np.array([x, 0.0, z])
+        local_position = np.array([x, 0.0, z])
+
+        if self.parent is not None:
+            self.position = self.parent.position + local_position
+        else:
+            self.position = local_position
+
         self.time = delta_time
 
     def get_model_matrix(self):

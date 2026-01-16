@@ -170,7 +170,7 @@ class SolarSystemGL(QOpenGLWidget):
             model_loc = glGetUniformLocation(object.program, "model")
 
             model_matrix = object.get_model_matrix()
-            glUniformMatrix4fv(model_loc, 1, GL_FALSE, model_matrix.T)
+            self.setup_program_uniforms(object.program, self.view_matrix, self.projection_matrix, model_matrix)
 
             object.update_uniforms()
 
@@ -373,7 +373,11 @@ class SolarSystemGL(QOpenGLWidget):
     def resizeGL(self, w, h):
         glViewport(0, 0, w, h)
 
-        # Rebuild projection matrix here if needed
+        # Rebuild projection matrix
+        self.aspect = w / h
+        projection_matrix = geometry.get_projection_matrix(math.radians(45), self.aspect, 0.1, 300.0)
+        self.projection_matrix = projection_matrix
+        
 
     def paintGL(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)

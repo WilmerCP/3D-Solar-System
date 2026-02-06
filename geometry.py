@@ -109,3 +109,48 @@ def get_orbit_ring_vertices(radius, segments=100):
         z = radius * np.sin(angle)
         vertices.extend([x, 0.0, z])
     return np.array(vertices, dtype=np.float32)
+
+#normalize screen coordinates into -1 to 1 range
+def get_ndc(x,size):
+
+    return (2*x)/(size) - 1
+
+
+def calulate_forward_vector(pitch,yaw):
+
+    pitch_rad = math.radians(pitch)
+    yaw_rad = math.radians(yaw)
+
+    component_x = 0
+    component_y = np.sin(pitch_rad)
+    component_z = np.cos(pitch_rad)
+
+    component_x = np.cos(pitch_rad) * np.sin(yaw_rad)
+    component_z = np.cos(pitch_rad) * np.cos(yaw_rad)
+
+    forward = np.array([component_x,component_y,-component_z])
+
+    return forward
+
+
+def calculate_turn_amout(coordinate):
+
+    if(coordinate is None):
+        return 0.0
+
+    amount = 0.0
+
+    if(coordinate > 0.10):
+        amount = 0.1
+        if(coordinate > 0.40):
+            amount = 0.2
+            if(coordinate > 0.70):
+                amount = 0.3
+    elif(coordinate < -0.10):
+        amount = -0.1
+        if(coordinate < -0.40):
+            amount = -0.2
+            if(coordinate < -0.70):
+                amount = -0.3
+    
+    return amount

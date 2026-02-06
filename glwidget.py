@@ -31,27 +31,75 @@ class SolarSystemGL(QOpenGLWidget):
         self.camera_pitch = -14
         self.camera_yaw = 0
         self.aspect = 800 / 600
+        self.width = 800
+        self.height = 600
         self.program_background = None
         self.background_vao = None
         self.pressed_keys = set()
         self.pressed_mouse_buttons = set()
         self.eye_position = np.array([0,20,80],dtype=np.float32)
+        self.x_ndc = None
+        self.y_ndc = None
+        self.fix_navigation = False
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
             self.back_to_menu.emit()
-        self.pressed_keys.add(event.key())
+        elif event.key() == Qt.Key_F:
+            self.fix_navigation = True
+        else:
+            self.pressed_keys.add(event.key())
 
     def keyReleaseEvent(self, event):
         self.pressed_keys.discard(event.key())
 
     def mousePressEvent(self, event):
         self.pressed_mouse_buttons.add(event.button())
+        x = event.x()
+        y = event.y()
+
+        self.x_ndc = geometry.get_ndc(x,self.width)
+        self.y_ndc = geometry.get_ndc(self.height - y, self.height)
+
+
+        #print(f"Mouse pressed at ({x_ndc}, {y_ndc})")
+
+    def mouseMoveEvent(self, event):
+        if Qt.LeftButton in self.pressed_mouse_buttons or Qt.RightButton in self.pressed_mouse_buttons:
+            x = event.x()
+            y = event.y()
+
+            self.x_ndc = geometry.get_ndc(x,self.width)
+            self.y_ndc = geometry.get_ndc(self.height - y, self.height)
+            
 
     def mouseReleaseEvent(self, event):
         self.pressed_mouse_buttons.discard(event.button())
+        self.x_ndc = None
+        self.y_ndc = None
 
     def updateCamera(self):
+
+        if self.fix_navigation:
+            target = np.array([0,0,0])
+            up = np.array([0,1,0])
+
+            direction = target - self.eye_position
+            self.camera_yaw = math.degrees(math.atan2(direction[0], -direction[2]))
+            horizontal_dist = math.sqrt(direction[0]**2 + direction[2]**2)
+            self.camera_pitch = math.degrees(math.atan2(direction[1], horizontal_dist))
+
+            self.view_matrix = geometry.get_look_at_matrix(self.eye_position, target, up)
+       
+            # Update all programs' uniforms
+        
+            for p in self.planets:
+                self.setup_program_uniforms(p.program, self.view_matrix, self.projection_matrix, self.model_matrix)
+                self.setup_program_uniforms(self.program_ring, self.view_matrix, self.projection_matrix, self.model_matrix)
+            
+            self.fix_navigation = False
+            self.update()  # Request a redraw
+            return
 
         # Check pressed keys and update camera
         if Qt.Key_W in self.pressed_keys:
@@ -73,24 +121,28 @@ class SolarSystemGL(QOpenGLWidget):
         
         up = np.array([0,1,0])
 
-        pitch_rad = math.radians(self.camera_pitch)
-        yaw_rad = math.radians(self.camera_yaw)
-
-        component_x = 0
-        component_y = np.sin(pitch_rad)
-        component_z = np.cos(pitch_rad)
-
-        component_x = np.cos(pitch_rad) * np.sin(yaw_rad)
-        component_z = np.cos(pitch_rad) * np.cos(yaw_rad)
-
-        forward = np.array([component_x,component_y,-component_z])
+        forward = geometry.calulate_forward_vector(self.camera_pitch,self.camera_yaw)
 
         if Qt.LeftButton in self.pressed_mouse_buttons:
         # Move camera forward
+
+            self.camera_pitch += geometry.calculate_turn_amout(self.y_ndc)
+            self.camera_yaw += geometry.calculate_turn_amout(self.x_ndc)
+                
+            # Clamp pitch
+            self.camera_pitch = max(-89, min(self.camera_pitch, 89))
+            forward = geometry.calulate_forward_vector(self.camera_pitch,self.camera_yaw)
             self.eye_position += (forward * 0.5)
 
+            
+
         if Qt.RightButton in self.pressed_mouse_buttons:
-        # Move camera forward
+            self.camera_pitch += geometry.calculate_turn_amout(self.y_ndc)
+            self.camera_yaw += geometry.calculate_turn_amout(self.x_ndc)
+            
+            # Clamp pitch
+            self.camera_pitch = max(-89, min(self.camera_pitch, 89))
+            forward = geometry.calulate_forward_vector(self.camera_pitch,self.camera_yaw)
             self.eye_position -= (forward * 0.4)
 
         target = self.eye_position + forward
@@ -227,22 +279,26 @@ class SolarSystemGL(QOpenGLWidget):
                 glDrawElements(GL_TRIANGLE_STRIP,indices_per_strip,GL_UNSIGNED_INT,ctypes.c_void_p(offset * 4))
                 offset += indices_per_strip
 
-            glUseProgram(self.program_ring)
-            glBindVertexArray(self.ring_vao)
-            scaling_matrix = np.identity(4, dtype=np.float32)
-            scaling_matrix[0, 0] = object.orbit_radius  
-            scaling_matrix[1, 1] = 1.0     
-            scaling_matrix[2, 2] = object.orbit_radius 
-            
-            model_matrix = np.dot(self.model_matrix,scaling_matrix)
+            self.draw_ring(object.orbit_radius)
 
-            self.setup_program_uniforms(self.program_ring,self.view_matrix,self.projection_matrix,model_matrix)
-            ring_color = np.array([1.0, 1.0, 1.0], dtype=np.float32)
-            ring_color_loc = glGetUniformLocation(self.program_ring, "ringColor")
-            glUniform3fv(ring_color_loc, 1, ring_color)  # White color, for example
+    def draw_ring(self,radius):
+        glUseProgram(self.program_ring)
+        glBindVertexArray(self.ring_vao)
+        scaling_matrix = np.identity(4, dtype=np.float32)
+        scaling_matrix[0, 0] = radius
+        scaling_matrix[1, 1] = 1.0     
+        scaling_matrix[2, 2] = radius
             
-            glDrawArrays(GL_LINE_STRIP, 0, 101)
-            glBindVertexArray(0)
+        model_matrix = np.dot(self.model_matrix,scaling_matrix)
+
+        self.setup_program_uniforms(self.program_ring,self.view_matrix,self.projection_matrix,model_matrix)
+        ring_color = np.array([1.0, 1.0, 1.0], dtype=np.float32)
+        ring_color_loc = glGetUniformLocation(self.program_ring, "ringColor")
+        glUniform3fv(ring_color_loc, 1, ring_color) 
+            
+        glDrawArrays(GL_LINE_STRIP, 0, 101)
+        glBindVertexArray(0)
+
 
     def initializeGL(self):
         glEnable(GL_DEPTH_TEST)
@@ -425,6 +481,8 @@ class SolarSystemGL(QOpenGLWidget):
 
         # Rebuild projection matrix
         self.aspect = w / h
+        self.width = w
+        self.height = h
         projection_matrix = geometry.get_projection_matrix(math.radians(45), self.aspect, 0.1, 300.0)
         self.projection_matrix = projection_matrix
         

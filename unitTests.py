@@ -57,6 +57,13 @@ class TestGeometry(unittest.TestCase):
         R = result[:3,:3]
         np.testing.assert_allclose(R @ R.T, np.eye(3), atol=1e-5)
 
+    def test_normalize_coordinate(self):
+        result = geometry.get_ndc(100,100)
+        np.testing.assert_equal(result,1)
+
+        result = geometry.get_ndc(50,100)
+        np.testing.assert_equal(result,0)
+    
 
 if __name__ == '__main__':
     unittest.main()

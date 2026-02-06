@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import QOpenGLWidget
-from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import QTimer, Qt, pyqtSignal
 from OpenGL.GL import *
 import numpy as np
 import time
@@ -12,6 +13,9 @@ from planet import Sun
 from planet import TexturedPlanet
 
 class SolarSystemGL(QOpenGLWidget):
+
+    back_to_menu = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -24,40 +28,82 @@ class SolarSystemGL(QOpenGLWidget):
         self.timer.timeout.connect(self.update)
         self.timer.start(16)  # ~60 FPS
         self.camera_distance = 80
-        self.camera_pitch = 15
+        self.camera_pitch = -14
+        self.camera_yaw = 0
         self.aspect = 800 / 600
         self.program_background = None
         self.background_vao = None
+        self.pressed_keys = set()
+        self.pressed_mouse_buttons = set()
+        self.eye_position = np.array([0,20,80],dtype=np.float32)
 
     def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Escape:
+            self.back_to_menu.emit()
+        self.pressed_keys.add(event.key())
 
-        if event.key() == Qt.Key_W:
-            self.camera_distance -= 1  # Move closer
-        elif event.key() == Qt.Key_S:
-            self.camera_distance += 1  # Move farther
-        elif event.key() == Qt.Key_Up:
-            self.camera_pitch += 1     # Look up
-        elif event.key() == Qt.Key_Down:
-            self.camera_pitch -= 1     # Look down
-        elif event.key() == Qt.Key_Escape:
-            self.close()
+    def keyReleaseEvent(self, event):
+        self.pressed_keys.discard(event.key())
 
-        # Clamp camera distance to avoid going through the scene
-        self.camera_distance = max(10, min(self.camera_distance, 200))
-        self.camera_pitch = max(-89, min(self.camera_pitch, 89)) 
+    def mousePressEvent(self, event):
+        self.pressed_mouse_buttons.add(event.button())
+
+    def mouseReleaseEvent(self, event):
+        self.pressed_mouse_buttons.discard(event.button())
+
+    def updateCamera(self):
+
+        # Check pressed keys and update camera
+        if Qt.Key_W in self.pressed_keys:
+            self.camera_pitch += 0.5
+        if Qt.Key_S in self.pressed_keys:
+            self.camera_pitch -= 0.5
+        if Qt.Key_A in self.pressed_keys:
+            self.camera_yaw -= 0.5
+        if Qt.Key_D in self.pressed_keys:
+            self.camera_yaw += 0.5
+
+        # Clamp pitch
+        self.camera_pitch = max(-89, min(self.camera_pitch, 89))
+
+        if(self.camera_yaw > 360):
+            self.camera_yaw -= 360
+        if(self.camera_yaw < -360):
+            self.camera_yaw += 360
         
-        self.view_matrix = geometry.get_view_matrix(self.camera_distance, self.camera_pitch)
-        self.projection_matrix = geometry.get_projection_matrix(
-            math.radians(45), self.aspect, 0.1, 300.0
-        )
-        self.model_matrix = np.identity(4)
+        up = np.array([0,1,0])
 
+        pitch_rad = math.radians(self.camera_pitch)
+        yaw_rad = math.radians(self.camera_yaw)
+
+        component_x = 0
+        component_y = np.sin(pitch_rad)
+        component_z = np.cos(pitch_rad)
+
+        component_x = np.cos(pitch_rad) * np.sin(yaw_rad)
+        component_z = np.cos(pitch_rad) * np.cos(yaw_rad)
+
+        forward = np.array([component_x,component_y,-component_z])
+
+        if Qt.LeftButton in self.pressed_mouse_buttons:
+        # Move camera forward
+            self.eye_position += (forward * 0.5)
+
+        if Qt.RightButton in self.pressed_mouse_buttons:
+        # Move camera forward
+            self.eye_position -= (forward * 0.4)
+
+        target = self.eye_position + forward
+
+        self.view_matrix = geometry.get_look_at_matrix(self.eye_position,target,up)
+       
         # Update all programs' uniforms
-     
+        
         for p in self.planets:
             self.setup_program_uniforms(p.program, self.view_matrix, self.projection_matrix, self.model_matrix)
             self.setup_program_uniforms(self.program_ring, self.view_matrix, self.projection_matrix, self.model_matrix)
         self.update()  # Request a redraw
+
 
     @staticmethod
     def create_shader_program(vertex_shader_source, fragment_shader_source):
@@ -257,7 +303,11 @@ class SolarSystemGL(QOpenGLWidget):
         vao_planet = self.setup_buffer(program, data,index_data)
         vao_sun = self.setup_buffer(program_sun, data,index_data)
 
-        view_matrix = geometry.get_view_matrix(80,15)
+        target = np.array([0,0,0])
+        eye = self.eye_position
+        up = np.array([0,1,0])
+
+        view_matrix = geometry.get_look_at_matrix(eye,target,up)
         projection_matrix = geometry.get_projection_matrix(math.radians(45), self.aspect, 0.1, 300.0)
         model_matrix = np.identity(4)
 
@@ -380,6 +430,9 @@ class SolarSystemGL(QOpenGLWidget):
         
 
     def paintGL(self):
+
+        self.updateCamera()
+
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
         current_time = time.time()

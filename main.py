@@ -26,6 +26,7 @@ class Window(QtWidgets.QMainWindow):
 
     def connect_buttons(self):
         self.ui.start_button.clicked.connect(lambda: self.change_page(self.ui.animation_page))
+        self.ui.openGLWidget.back_to_menu.connect(lambda: self.change_page(self.ui.start_page))
 
     def change_page(self,widget):
         

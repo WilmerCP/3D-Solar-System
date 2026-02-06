@@ -52,6 +52,26 @@ def get_view_matrix(distance,pitch_degrees):
                      [0, 0, 0, 1]], dtype=np.float32)
     return view @ Rx
 
+def get_look_at_matrix(eye, target, up):
+    f = target - eye
+    f = f / np.linalg.norm(f)
+
+    r = np.cross(f,up)
+    r = r / np.linalg.norm(r)
+
+    up = np.cross(r,f)
+
+    lookAt = np.array([
+        [r[0],r[1],r[2], -np.dot(r,eye)],
+        [up[0],up[1],up[2],-np.dot(up,eye)],
+        [-f[0],-f[1],-f[2],np.dot(f,eye)],
+        [0,0,0,1]
+    ],dtype=np.float32)
+
+    return lookAt
+
+
+
 def get_projection_matrix(fov, aspect, near, far):
 
     c = 1 / math.tan(fov / 2)

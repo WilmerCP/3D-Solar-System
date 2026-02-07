@@ -154,3 +154,14 @@ def calculate_turn_amout(coordinate):
                 amount = -0.3
     
     return amount
+
+def get_ray_vertices(p1,p2):
+    origin = p1.copy()
+    origin[1] -= 0.1
+    end_point = p1 + p2*200
+
+    print(origin)
+    print(p1)
+
+    return np.array([origin[0], origin[1], origin[2], end_point[0], end_point[1], end_point[2]], dtype=np.float32)
+    #return np.array([end_point[0], end_point[1], end_point[2], 10, 10, 100], dtype=np.float32)

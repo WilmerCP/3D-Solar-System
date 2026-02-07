@@ -12,6 +12,10 @@ from planet import Planet
 from planet import Sun
 from planet import TexturedPlanet
 
+MODE_NORMAL = 0
+MODE_FOLLOW = 1
+MODE_FOCUS = 2
+
 class SolarSystemGL(QOpenGLWidget):
 
     back_to_menu = pyqtSignal()
@@ -41,12 +45,95 @@ class SolarSystemGL(QOpenGLWidget):
         self.x_ndc = None
         self.y_ndc = None
         self.fix_navigation = False
+        self.singleClick = False
+        self.selectedPlanet = 1
+        self.mode = MODE_NORMAL
+
+    def toggleMode(self):
+        if self.mode >= 2:
+            self.mode = 0
+        else:
+            self.mode += 1
+
+    def toggleSelection(self):
+        if self.selectedPlanet is not None:
+            if self.selectedPlanet >= 9:
+                self.selectedPlanet = 0
+            if self.selectedPlanet == 1:
+                self.selectedPlanet +=2
+            else:
+                self.selectedPlanet += 1
+        elif self.selectedPlanet is None:
+            self.selectedPlanet = 1
+
+    def detectSelection(self,x_ndc,y_ndc):
+
+        inverse_projection = np.linalg.inv(self.projection_matrix)
+        inverse_view = np.linalg.inv(self.view_matrix)
+        inverse_map = inverse_view @ inverse_projection
+
+        v1 = np.array([x_ndc,y_ndc,1,1],dtype=np.float32)
+
+        v1_transformed = np.dot(inverse_map,v1)
+
+
+        v1_3d = v1_transformed[:3] / v1_transformed[3]
+
+        dir = v1_3d - self.eye_position
+        dir = dir / np.linalg.norm(dir)
+        origin = self.eye_position
+
+        a = np.dot(dir,dir)
+
+        planetHit = None
+        distance = 0
+
+        for p in self.planets:
+            center = p.position
+            L = origin - center
+
+            b = 2 * np.dot(dir,L)
+            c = np.dot(L,L) - math.pow(p.radius,2)
+
+            discriminant = math.pow(b,2) - (4 * a * c)
+
+            if discriminant >=0:
+                t1 = (-b + math.sqrt(discriminant)) / (2 * a)
+                t2 = (-b - math.sqrt(discriminant)) / (2 * a)
+
+                if(t1 > 0 or t2 > 0):
+
+                    t = min([t for t in [t1,t2] if t>0], default=None)
+
+                    if t > distance:
+
+                        planetHit = self.planets.index(p)
+                        distance = t
+
+
+        if planetHit is not None:
+            self.selectedPlanet = planetHit
+            print("Planet {} was selected".format(self.planets[planetHit].name))
+            points = geometry.get_ray_vertices(origin,dir)
+            print("p1 = {} {} {}".format(points[0],points[1],points[2]))
+            print("p2 = {} {} {}".format(points[3],points[4],points[5]))
+            self.ray_points = points
+        else:
+            self.selectedPlanet = None
+            print("No planet selected")
+            
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
             self.back_to_menu.emit()
         elif event.key() == Qt.Key_F:
             self.fix_navigation = True
+        elif event.key() == Qt.Key_P:
+            self.toggleMode()
+        elif event.key() == Qt.Key_Right:
+            self.toggleSelection()
+        elif event.key() == Qt.Key_Left:
+            self.toggleSelection()
         else:
             self.pressed_keys.add(event.key())
 
@@ -60,6 +147,15 @@ class SolarSystemGL(QOpenGLWidget):
 
         self.x_ndc = geometry.get_ndc(x,self.width)
         self.y_ndc = geometry.get_ndc(self.height - y, self.height)
+        x = event.x()
+        y = event.y()
+
+
+        if self.mode == MODE_FOCUS or self.mode == MODE_FOLLOW:
+            self.detectSelection(self.x_ndc, self.y_ndc)
+
+        self.x_ndc = None
+        self.y_ndc = None
 
 
         #print(f"Mouse pressed at ({x_ndc}, {y_ndc})")
@@ -71,16 +167,18 @@ class SolarSystemGL(QOpenGLWidget):
 
             self.x_ndc = geometry.get_ndc(x,self.width)
             self.y_ndc = geometry.get_ndc(self.height - y, self.height)
-            
+            self.singleClick = False
 
     def mouseReleaseEvent(self, event):
         self.pressed_mouse_buttons.discard(event.button())
-        self.x_ndc = None
-        self.y_ndc = None
 
     def updateCamera(self):
 
         if self.fix_navigation:
+
+            if self.mode != MODE_NORMAL:
+                self.mode = MODE_NORMAL
+
             target = np.array([0,0,0])
             up = np.array([0,1,0])
 
@@ -98,6 +196,42 @@ class SolarSystemGL(QOpenGLWidget):
                 self.setup_program_uniforms(self.program_ring, self.view_matrix, self.projection_matrix, self.model_matrix)
             
             self.fix_navigation = False
+            self.update()  # Request a redraw
+            return
+        
+        if self.mode == MODE_FOCUS and self.selectedPlanet is not None:
+            target = self.planets[self.selectedPlanet].position
+            up = np.array([0,1,0],dtype=np.float32)
+            direction = None
+            if self.planets[self.selectedPlanet].name != "Sun":
+                direction = target.copy() / np.linalg.norm(target)
+            else:
+                direction = np.array([0,0,1],dtype=np.float32)
+            camera = target + direction * 18  + up * 5
+
+            self.view_matrix = geometry.get_look_at_matrix(camera, target, up)
+       
+            # Update all programs' uniforms
+        
+            for p in self.planets:
+                self.setup_program_uniforms(p.program, self.view_matrix, self.projection_matrix, self.model_matrix)
+                self.setup_program_uniforms(self.program_ring, self.view_matrix, self.projection_matrix, self.model_matrix)
+            
+            self.update()  # Request a redraw
+            return
+        
+        if self.mode == MODE_FOLLOW and self.selectedPlanet is not None:
+            target = self.planets[self.selectedPlanet].position
+            up = np.array([0,1,0],dtype=np.float32)
+
+            self.view_matrix = geometry.get_look_at_matrix(self.eye_position, target, up)
+       
+            # Update all programs' uniforms
+        
+            for p in self.planets:
+                self.setup_program_uniforms(p.program, self.view_matrix, self.projection_matrix, self.model_matrix)
+                self.setup_program_uniforms(self.program_ring, self.view_matrix, self.projection_matrix, self.model_matrix)
+            
             self.update()  # Request a redraw
             return
 
@@ -199,8 +333,7 @@ class SolarSystemGL(QOpenGLWidget):
         glUseProgram(program)
         return program
 
-    @staticmethod
-    def setup_buffer(program,data,index_data):
+    def setup_buffer(self,program,data,index_data,line=False):
 
         vao = glGenVertexArrays(1)
         glBindVertexArray(vao)
@@ -226,6 +359,9 @@ class SolarSystemGL(QOpenGLWidget):
             EBO = glGenBuffers(1)
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO)
             glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_data.nbytes, index_data, GL_STATIC_DRAW)
+
+        if(line == True):
+            self.ray_vbo = buffer
 
         glBindVertexArray(0)
         return vao
@@ -299,6 +435,22 @@ class SolarSystemGL(QOpenGLWidget):
         glDrawArrays(GL_LINE_STRIP, 0, 101)
         glBindVertexArray(0)
 
+    def draw_ray(self):
+        glUseProgram(self.program_ring)
+        glBindVertexArray(self.ray_vao)
+        model_matrix = np.identity(4, dtype=np.float32)
+        self.setup_program_uniforms(self.program_ring,self.view_matrix,self.projection_matrix,model_matrix)
+        ring_color = np.array([1.0, 1.0, 1.0], dtype=np.float32)
+        ring_color_loc = glGetUniformLocation(self.program_ring, "ringColor")
+        glUniform3fv(ring_color_loc, 1, ring_color) 
+
+        glBindBuffer(GL_ARRAY_BUFFER,self.ray_vbo)
+        glBufferSubData(GL_ARRAY_BUFFER, 0, self.ray_points.nbytes, self.ray_points)
+        
+        glLineWidth(2.0)
+        glDrawArrays(GL_LINES,0,2)
+        glBindVertexArray(0)
+
 
     def initializeGL(self):
         glEnable(GL_DEPTH_TEST)
@@ -342,6 +494,10 @@ class SolarSystemGL(QOpenGLWidget):
         glUniform3fv(ring_color_loc, 1, ring_color)
         glUseProgram(0)
 
+        line_placeholder = np.array([0,0,0,0,0,0], dtype=np.float32)
+        self.ray_vao = self.setup_buffer(self.program_ring, line_placeholder, None,True)
+
+
         self.program_background = self.create_shader_program(background_vertex,background_fragment)
         self.background_vao = self.setup_buffer(self.program_background, background_vertices, None)
 
@@ -384,7 +540,7 @@ class SolarSystemGL(QOpenGLWidget):
 
         earth = TexturedPlanet("Earth", radius=1.3,
                 orbit_radius=20.0,
-                orbit_speed=1,
+                orbit_speed=0.8,
                 spin_speed=1.8)
         earth.vao = vao_planet
         earth.orbit_angle = math.radians(0)
@@ -407,7 +563,7 @@ class SolarSystemGL(QOpenGLWidget):
                 color_left=np.array([0.7, 0.7, 0.6]),
                 color_right=np.array([0.5, 0.4, 0.3]),
                 orbit_radius=14.0,
-                orbit_speed=3.0,
+                orbit_speed=1.0,
                 spin_speed=2)
         mercury.vao = vao_planet
         mercury.orbit_angle = math.radians(20)
@@ -417,7 +573,7 @@ class SolarSystemGL(QOpenGLWidget):
                 color_left=np.array([0.95, 0.85, 0.55]),
                 color_right=np.array([0.9, 0.75, 0.35]),
                 orbit_radius=25.6,
-                orbit_speed=1.62,
+                orbit_speed=1,
                 spin_speed=-1.5)
         venus.vao = vao_planet
         venus.orbit_angle = math.radians(180)
@@ -504,4 +660,7 @@ class SolarSystemGL(QOpenGLWidget):
 
         for p in self.planets:
             self.draw_planet(p,delta_time)
+
+        ##if self.selectedPlanet is not None and self.ray_points is not None:
+        ##    self.draw_ray()
 

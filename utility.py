@@ -47,7 +47,7 @@ def load_texture_qt(path):
 
     glBindTexture(GL_TEXTURE_2D, 0)
 
-    print('texture loaded with Qt:', tex_id)
+    #print('texture loaded with Qt:', tex_id)
     return tex_id
 
 

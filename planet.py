@@ -29,6 +29,7 @@ class Planet:
 
         # Current position in world space
         self.position = np.array([self.orbit_radius, 0.0, 0.0], dtype=float)
+        self.previous_position = np.array([self.orbit_radius, 0.0, 0.0], dtype=float)
         self.time = 0.0
 
     def update(self, delta_time: float):
@@ -42,8 +43,10 @@ class Planet:
         local_position = np.array([x, 0.0, z])
 
         if self.parent is not None:
+            self.previous_position = self.position
             self.position = self.parent.position + local_position
         else:
+            self.previous_position = self.position
             self.position = local_position
 
         self.time = delta_time
@@ -73,6 +76,13 @@ class Planet:
         model = T @ R @ S
         return model
     
+    def get_velocity_vector(self):
+
+        vector = self.position - self.previous_position
+        normalized = vector / np.linalg.norm(vector)
+
+        return normalized
+
     def update_uniforms(self):
         """
         Update the shader uniforms for this planet.

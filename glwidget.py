@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import QOpenGLWidget
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import QTimer, Qt, pyqtSignal
+from PyQt5.QtGui import QPainter, QFont, QColor
 from OpenGL.GL import *
 import numpy as np
 import time
@@ -19,6 +20,7 @@ MODE_FOCUS = 2
 class SolarSystemGL(QOpenGLWidget):
 
     back_to_menu = pyqtSignal()
+    back_to_controls = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -126,6 +128,8 @@ class SolarSystemGL(QOpenGLWidget):
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
             self.back_to_menu.emit()
+        elif event.key() == Qt.Key_C:
+            self.back_to_controls.emit()
         elif event.key() == Qt.Key_F:
             self.fix_navigation = True
         elif event.key() == Qt.Key_P:
@@ -204,10 +208,10 @@ class SolarSystemGL(QOpenGLWidget):
             up = np.array([0,1,0],dtype=np.float32)
             direction = None
             if self.planets[self.selectedPlanet].name != "Sun":
-                direction = target.copy() / np.linalg.norm(target)
+                direction = self.planets[self.selectedPlanet].get_velocity_vector()
             else:
                 direction = np.array([0,0,1],dtype=np.float32)
-            camera = target + direction * 18  + up * 5
+            camera = target - direction * 18  + up * 5
 
             self.view_matrix = geometry.get_look_at_matrix(camera, target, up)
        
@@ -643,7 +647,32 @@ class SolarSystemGL(QOpenGLWidget):
         self.projection_matrix = projection_matrix
         
 
+    def writeText(self,text,x,y):
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setFont(QFont("Arial", 20))
+
+        metrics = painter.fontMetrics()
+        text_width = metrics.horizontalAdvance(text)  
+        centered_x = x - text_width / 2
+
+        painter.fillRect(int(centered_x)-5, int(y)-25, text_width + 11, 31, QColor(0,0,0,150))
+        painter.setPen(Qt.black)
+        painter.drawText(int(centered_x)+1,int(y)+1,text)
+
+        painter.setPen(Qt.white)
+        painter.drawText(int(centered_x),int(y),text)
+
+
+        painter.end()
+
     def paintGL(self):
+
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glEnable(GL_DEPTH_TEST)
+        glDepthMask(GL_TRUE)
 
         self.updateCamera()
 
@@ -663,4 +692,12 @@ class SolarSystemGL(QOpenGLWidget):
 
         ##if self.selectedPlanet is not None and self.ray_points is not None:
         ##    self.draw_ray()
+
+        if self.mode != MODE_NORMAL and self.selectedPlanet is not None:
+
+            x = self.width / 2
+            y = self.height * 0.8
+            self.writeText(self.planets[self.selectedPlanet].name,x,y)
+        
+
 

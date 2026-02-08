@@ -129,6 +129,15 @@ $transpose(inverse(ModelMatrix)) * normal$
 - Result is passed to the fragment shader for lighting calculations
 
 ---
+## 🎯 Ray Casting
+
+Ray casting system was implemented to select planets directly from the 3D scene whenever Focus mode or Follow mode are active.
+
+When the user clicks on the screen, a ray is generated from the camera position through the mouse coordinates into world space. The screen coordinates are converted into Normalized Device Coordinates and then transformed using the inverse Projection and View matrices to obtain the ray direction.
+
+Each planet is represented with a bounding sphere using its world position and radius. A ray–sphere intersection test is performed against all planets, and the closest intersected object becomes the selected element.
+
+---
 
 ## 🧮 MVP Matrix
 

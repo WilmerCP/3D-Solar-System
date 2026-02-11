@@ -21,7 +21,8 @@ class Planet:
         self.color_right = color_right
         self.vao = None
         self.program = None
-        self.parent = parent 
+        self.parent = parent
+        self.rings = False
 
         # Current angles for orbit and spin
         self.orbit_angle = 0.0
@@ -76,6 +77,30 @@ class Planet:
         model = T @ R @ S
         return model
     
+    def get_ring_model_matrix(self,scale):
+        # Translation
+        T = np.identity(4)
+        T[:3, 3] = self.position
+
+        # Scaling
+        S = np.identity(4)
+        S[0, 0] = self.radius * scale
+        S[1, 1] = self.radius * scale
+        S[2, 2] = self.radius * scale
+
+        # Spin rotation around Y
+        cos_a = np.cos(self.spin_angle)
+        sin_a = np.sin(self.spin_angle)
+        R = np.identity(4)
+        R[0, 0] = cos_a
+        R[0, 2] = sin_a
+        R[2, 0] = -sin_a
+        R[2, 2] = cos_a
+
+        # Model matrix: Translation * Rotation * Scale
+        model = T @ R @ S
+        return model
+    
     def get_velocity_vector(self):
 
         vector = self.position - self.previous_position
@@ -110,6 +135,9 @@ class TexturedPlanet(Planet):
 
         self.texture_unit = None
         self.texture_id = None
+        self.ring_texture_id = None
+        self.ring_texture_unit = None
+        self.rings_program = None
         
 
     def update_uniforms(self):
@@ -117,7 +145,21 @@ class TexturedPlanet(Planet):
         #glUniform1f(time_loc,self.time)
 
         glActiveTexture(GL_TEXTURE0 + self.texture_unit)
-        glBindTexture(GL_TEXTURE_2D, self.texture_id)  # texture_id must be the correct OpenGL texture handle
+        glBindTexture(GL_TEXTURE_2D, self.texture_id)  
 
         uTexture_loc = glGetUniformLocation(self.program, "texture")
         glUniform1i(uTexture_loc, self.texture_unit)
+
+    def update_ring_uniforms(self):
+        glActiveTexture(GL_TEXTURE0 + self.ring_texture_unit)
+        glBindTexture(GL_TEXTURE_2D, self.ring_texture_id) 
+
+        uTexture_loc = glGetUniformLocation(self.rings_program, "texture")
+        glUniform1i(uTexture_loc, self.ring_texture_unit)
+
+        uInner_loc = glGetUniformLocation(self.rings_program,"inner_radius")
+        glUniform1f(uInner_loc,1)
+
+        uInner_loc = glGetUniformLocation(self.rings_program,"outer_radius")
+        glUniform1f(uInner_loc,2)
+

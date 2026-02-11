@@ -110,6 +110,31 @@ def get_orbit_ring_vertices(radius, segments=100):
         vertices.extend([x, 0.0, z])
     return np.array(vertices, dtype=np.float32)
 
+def get_ring_vertices(radius, segments=100):
+    internal = []
+    for i in range(segments + 1):
+        angle = 2 * np.pi * i / segments
+        x = radius * np.cos(angle)
+        z = radius * np.sin(angle)
+        internal.append([x, 0.0, z])
+
+    external = []
+    for i in range(segments + 1):
+        angle = 2 * np.pi * i / segments
+        x = radius * 2 * np.cos(angle)
+        z = radius * 2 * np.sin(angle)
+        external.append([x, 0.0, z])
+
+
+    vertices = []
+    for i in range(segments + 1 ):
+
+        vertices.extend(internal[i])
+        vertices.extend(external[i])
+
+
+    return np.array(vertices, dtype=np.float32)
+
 #normalize screen coordinates into -1 to 1 range
 def get_ndc(x,size):
 

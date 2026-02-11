@@ -43,7 +43,9 @@ class SolarSystemGL(QOpenGLWidget):
         self.background_vao = None
         self.pressed_keys = set()
         self.pressed_mouse_buttons = set()
-        self.eye_position = np.array([0,20,80],dtype=np.float32)
+        self.near_clipping = 0.1
+        self.far_clipping = 800
+        self.eye_position = np.array([0,40,150],dtype=np.float32)
         self.x_ndc = None
         self.y_ndc = None
         self.fix_navigation = False
@@ -197,7 +199,7 @@ class SolarSystemGL(QOpenGLWidget):
         
             for p in self.planets:
                 self.setup_program_uniforms(p.program, self.view_matrix, self.projection_matrix, self.model_matrix)
-                self.setup_program_uniforms(self.program_ring, self.view_matrix, self.projection_matrix, self.model_matrix)
+                self.setup_program_uniforms(self.program_orbit, self.view_matrix, self.projection_matrix, self.model_matrix)
             
             self.fix_navigation = False
             self.update()  # Request a redraw
@@ -219,7 +221,7 @@ class SolarSystemGL(QOpenGLWidget):
         
             for p in self.planets:
                 self.setup_program_uniforms(p.program, self.view_matrix, self.projection_matrix, self.model_matrix)
-                self.setup_program_uniforms(self.program_ring, self.view_matrix, self.projection_matrix, self.model_matrix)
+                self.setup_program_uniforms(self.program_orbit, self.view_matrix, self.projection_matrix, self.model_matrix)
             
             self.update()  # Request a redraw
             return
@@ -234,7 +236,7 @@ class SolarSystemGL(QOpenGLWidget):
         
             for p in self.planets:
                 self.setup_program_uniforms(p.program, self.view_matrix, self.projection_matrix, self.model_matrix)
-                self.setup_program_uniforms(self.program_ring, self.view_matrix, self.projection_matrix, self.model_matrix)
+                self.setup_program_uniforms(self.program_orbit, self.view_matrix, self.projection_matrix, self.model_matrix)
             
             self.update()  # Request a redraw
             return
@@ -291,7 +293,7 @@ class SolarSystemGL(QOpenGLWidget):
         
         for p in self.planets:
             self.setup_program_uniforms(p.program, self.view_matrix, self.projection_matrix, self.model_matrix)
-            self.setup_program_uniforms(self.program_ring, self.view_matrix, self.projection_matrix, self.model_matrix)
+            self.setup_program_uniforms(self.program_orbit, self.view_matrix, self.projection_matrix, self.model_matrix)
         self.update()  # Request a redraw
 
 
@@ -419,11 +421,26 @@ class SolarSystemGL(QOpenGLWidget):
                 glDrawElements(GL_TRIANGLE_STRIP,indices_per_strip,GL_UNSIGNED_INT,ctypes.c_void_p(offset * 4))
                 offset += indices_per_strip
 
-            self.draw_ring(object.orbit_radius)
+            self.draw_orbit(object.orbit_radius)
 
-    def draw_ring(self,radius):
-        glUseProgram(self.program_ring)
+            if(object.rings):
+                self.draw_planet_rings(object)
+
+    def draw_planet_rings(self,object):
+        glUseProgram(self.program_rings)
         glBindVertexArray(self.ring_vao)
+            
+        model_matrix = object.get_ring_model_matrix(1.4)
+
+        self.setup_program_uniforms(self.program_rings,self.view_matrix,self.projection_matrix,model_matrix)
+        object.update_ring_uniforms()
+
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 202)
+        glBindVertexArray(0)
+
+    def draw_orbit(self,radius):
+        glUseProgram(self.program_orbit)
+        glBindVertexArray(self.orbit_vao)
         scaling_matrix = np.identity(4, dtype=np.float32)
         scaling_matrix[0, 0] = radius
         scaling_matrix[1, 1] = 1.0     
@@ -431,22 +448,22 @@ class SolarSystemGL(QOpenGLWidget):
             
         model_matrix = np.dot(self.model_matrix,scaling_matrix)
 
-        self.setup_program_uniforms(self.program_ring,self.view_matrix,self.projection_matrix,model_matrix)
-        ring_color = np.array([1.0, 1.0, 1.0], dtype=np.float32)
-        ring_color_loc = glGetUniformLocation(self.program_ring, "ringColor")
-        glUniform3fv(ring_color_loc, 1, ring_color) 
+        self.setup_program_uniforms(self.program_orbit,self.view_matrix,self.projection_matrix,model_matrix)
+        orbit_color = np.array([1.0, 1.0, 1.0], dtype=np.float32)
+        orbit_color_loc = glGetUniformLocation(self.program_orbit, "orbitColor")
+        glUniform3fv(orbit_color_loc, 1, orbit_color) 
             
         glDrawArrays(GL_LINE_STRIP, 0, 101)
         glBindVertexArray(0)
 
     def draw_ray(self):
-        glUseProgram(self.program_ring)
+        glUseProgram(self.program_orbit)
         glBindVertexArray(self.ray_vao)
         model_matrix = np.identity(4, dtype=np.float32)
-        self.setup_program_uniforms(self.program_ring,self.view_matrix,self.projection_matrix,model_matrix)
-        ring_color = np.array([1.0, 1.0, 1.0], dtype=np.float32)
-        ring_color_loc = glGetUniformLocation(self.program_ring, "ringColor")
-        glUniform3fv(ring_color_loc, 1, ring_color) 
+        self.setup_program_uniforms(self.program_orbit,self.view_matrix,self.projection_matrix,model_matrix)
+        orbit_color = np.array([1.0, 1.0, 1.0], dtype=np.float32)
+        orbit_color_loc = glGetUniformLocation(self.program_orbit, "orbitColor")
+        glUniform3fv(orbit_color_loc, 1, orbit_color) 
 
         glBindBuffer(GL_ARRAY_BUFFER,self.ray_vbo)
         glBufferSubData(GL_ARRAY_BUFFER, 0, self.ray_points.nbytes, self.ray_points)
@@ -476,11 +493,15 @@ class SolarSystemGL(QOpenGLWidget):
         background_vertex = utility.load_shader_source("shaders/bg_vertex.glsl")
         background_fragment = utility.load_shader_source("shaders/bg_fragment.glsl")
 
+        orbit_vertex = utility.load_shader_source("shaders/orbit_vertex.glsl")
+        orbit_fragment = utility.load_shader_source("shaders/orbit_fragment.glsl")
+
         ring_vertex = utility.load_shader_source("shaders/ring_vertex.glsl")
         ring_fragment = utility.load_shader_source("shaders/ring_fragment.glsl")
 
         background_vertices = geometry.get_background_vertices()
-        ring_vertices = geometry.get_orbit_ring_vertices(radius=1.0, segments=100)
+        orbit_vertices = geometry.get_orbit_ring_vertices(radius=1.0, segments=100)
+        ring_vertices = geometry.get_ring_vertices(radius=1.0,segments=100)
 
         glEnable(GL_DEPTH_TEST)      # Enable depth testing
         glDepthFunc(GL_LESS)    # Specify depth test function
@@ -488,18 +509,26 @@ class SolarSystemGL(QOpenGLWidget):
         program = self.create_shader_program(vertex_shader_source, fragment_shader_source)
         program_sun = self.create_shader_program(sun_vertex, sun_fragment)
         program_textured = self.create_shader_program(textured_vertex,textured_fragment)
-        self.program_ring = self.create_shader_program(ring_vertex,ring_fragment)
+        self.program_orbit = self.create_shader_program(orbit_vertex,orbit_fragment)
+        self.program_rings = self.create_shader_program(ring_vertex,ring_fragment)
 
-        self.ring_vao = self.setup_buffer(self.program_ring, ring_vertices, None)
+        self.orbit_vao = self.setup_buffer(self.program_orbit, orbit_vertices, None)
 
-        glUseProgram(self.program_ring)
+        glUseProgram(self.program_orbit)
+        orbit_color = np.array([1.0, 1.0, 1.0], dtype=np.float32)
+        orbit_color_loc = glGetUniformLocation(self.program_orbit, "orbitColor")
+        glUniform3fv(orbit_color_loc, 1, orbit_color)
+        glUseProgram(0)
+
+        self.ring_vao = self.setup_buffer(self.program_rings, ring_vertices,None)
+        glUseProgram(self.program_rings)
         ring_color = np.array([1.0, 1.0, 1.0], dtype=np.float32)
-        ring_color_loc = glGetUniformLocation(self.program_ring, "ringColor")
+        ring_color_loc = glGetUniformLocation(self.program_rings, "ringColor")
         glUniform3fv(ring_color_loc, 1, ring_color)
         glUseProgram(0)
 
         line_placeholder = np.array([0,0,0,0,0,0], dtype=np.float32)
-        self.ray_vao = self.setup_buffer(self.program_ring, line_placeholder, None,True)
+        self.ray_vao = self.setup_buffer(self.program_orbit, line_placeholder, None,True)
 
 
         self.program_background = self.create_shader_program(background_vertex,background_fragment)
@@ -524,13 +553,13 @@ class SolarSystemGL(QOpenGLWidget):
         up = np.array([0,1,0])
 
         view_matrix = geometry.get_look_at_matrix(eye,target,up)
-        projection_matrix = geometry.get_projection_matrix(math.radians(45), self.aspect, 0.1, 300.0)
+        projection_matrix = geometry.get_projection_matrix(math.radians(45), self.aspect, self.near_clipping,self.far_clipping)
         model_matrix = np.identity(4)
 
         self.setup_program_uniforms(program,view_matrix,projection_matrix,model_matrix)
         self.setup_program_uniforms(program_sun,view_matrix,projection_matrix,model_matrix)
         self.setup_program_uniforms(program_textured,view_matrix,projection_matrix,model_matrix)
-        self.setup_program_uniforms(self.program_ring,view_matrix,projection_matrix,model_matrix)
+        self.setup_program_uniforms(self.program_orbit,view_matrix,projection_matrix,model_matrix)
         
         self.model_matrix = model_matrix
         self.view_matrix = view_matrix
@@ -543,7 +572,7 @@ class SolarSystemGL(QOpenGLWidget):
         sun.program = program_sun
 
         earth = TexturedPlanet("Earth", radius=1.3,
-                orbit_radius=20.0,
+                orbit_radius=35.0,
                 orbit_speed=0.8,
                 spin_speed=1.8)
         earth.vao = vao_planet
@@ -566,7 +595,7 @@ class SolarSystemGL(QOpenGLWidget):
         mercury = Planet("Mercury", radius=0.5,
                 color_left=np.array([0.7, 0.7, 0.6]),
                 color_right=np.array([0.5, 0.4, 0.3]),
-                orbit_radius=14.0,
+                orbit_radius=16.0,
                 orbit_speed=1.0,
                 spin_speed=2)
         mercury.vao = vao_planet
@@ -586,7 +615,7 @@ class SolarSystemGL(QOpenGLWidget):
         mars = Planet("Mars", radius=1.0,
                 color_left=np.array([0.85, 0.45, 0.25]),
                 color_right=np.array([0.6, 0.3, 0.18]),
-                orbit_radius=33.0,
+                orbit_radius=49.0,
                 orbit_speed=0.73,
                 spin_speed=3.1)
         mars.vao = vao_planet
@@ -596,27 +625,39 @@ class SolarSystemGL(QOpenGLWidget):
         jupiter = Planet("Jupiter", radius=3.0,
                 color_left=np.array([0.95, 0.85, 0.65]),
                 color_right=np.array([0.85, 0.55, 0.25]),
-                orbit_radius=41.0,
+                orbit_radius=63.0,
                 orbit_speed=0.06,
                 spin_speed=4)
         jupiter.vao = vao_planet
         jupiter.orbit_angle = math.radians(270)
         jupiter.program = program
 
-        saturn = Planet("Saturn", radius=2.5,
-                color_left=np.array([0.95, 0.90, 0.70]),
-                color_right=np.array([0.85, 0.75, 0.45]),
-                orbit_radius=48.0,
+        saturn = TexturedPlanet("Saturn", radius=2.5,
+                orbit_radius=78.0,
                 orbit_speed=0.18,
-                spin_speed=9)
+                spin_speed=2)
         saturn.vao = vao_planet
         saturn.orbit_angle = math.radians(200)
-        saturn.program = program
+        saturn.program = program_textured
+        saturn.rings_program = self.program_rings
+        saturn.rings = True
+
+        texture_id = utility.load_texture_qt("textures/saturn.jpg")
+        glActiveTexture(GL_TEXTURE0)
+        glBindTexture(GL_TEXTURE_2D, texture_id)
+        saturn.texture_unit = 0
+        saturn.texture_id = texture_id
+
+        ring_texture_id = utility.load_texture_qt("textures/saturn_ring.png")
+        glActiveTexture(GL_TEXTURE1)
+        glBindTexture(GL_TEXTURE_2D,ring_texture_id)
+        saturn.ring_texture_id = ring_texture_id
+        saturn.ring_texture_unit = 1
 
         uranus = Planet("Uranus", radius=1.7,
                 color_left=np.array([0.65, 0.85, 0.95]),
                 color_right=np.array([0.45, 0.75, 0.95]),
-                orbit_radius=55.0,
+                orbit_radius=95.0,
                 orbit_speed=0.1,
                 spin_speed=-8)
         uranus.vao = vao_planet
@@ -626,7 +667,7 @@ class SolarSystemGL(QOpenGLWidget):
         neptune = Planet("Neptune", radius=1.6,
                 color_left=np.array([0.35, 0.55, 0.95]),
                 color_right=np.array([0.25, 0.35, 0.75]),
-                orbit_radius=60.0,
+                orbit_radius=120.0,
                 orbit_speed=0.08,
                 spin_speed=8.0)
         neptune.vao = vao_planet
@@ -643,7 +684,7 @@ class SolarSystemGL(QOpenGLWidget):
         self.aspect = w / h
         self.width = w
         self.height = h
-        projection_matrix = geometry.get_projection_matrix(math.radians(45), self.aspect, 0.1, 300.0)
+        projection_matrix = geometry.get_projection_matrix(math.radians(45), self.aspect, self.near_clipping, self.far_clipping)
         self.projection_matrix = projection_matrix
         
 

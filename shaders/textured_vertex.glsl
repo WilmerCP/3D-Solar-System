@@ -26,6 +26,6 @@ void main(){
     float v = 0.5 - asin(position.y) / PI;                 // latitude
 
 
-    vTexCoord = vec2(u,v);
+    vTexCoord = vec2(u,-v);
 
 }

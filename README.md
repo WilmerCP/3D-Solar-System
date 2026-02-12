@@ -145,7 +145,7 @@ Each planet is represented with a bounding sphere using its world position and r
 - Perspective projection
 - Resolution: 800 × 600
 - Near plane: 0.1
-- Far plane: 200
+- Far plane: 800
 - Field of view: 45°
 
 Defines the viewing frustum and maps points into normalized device coordinates.

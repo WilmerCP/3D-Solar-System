@@ -130,8 +130,8 @@ class Sun(Planet):
         glUniform1f(time_loc,self.time)
 
 class TexturedPlanet(Planet):
-    def __init__(self, name, radius=1.0, orbit_radius=0.0, orbit_speed=0.0, spin_speed=0.0):
-        super().__init__(name, radius, orbit_radius, orbit_speed, spin_speed)
+    def __init__(self, name, radius=1.0, orbit_radius=0.0, orbit_speed=0.0, spin_speed=0.0, parent: 'Planet' = None ):
+        super().__init__(name, radius, orbit_radius, orbit_speed, spin_speed, parent=parent)
 
         self.texture_unit = None
         self.texture_id = None

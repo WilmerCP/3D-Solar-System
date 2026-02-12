@@ -472,6 +472,19 @@ class SolarSystemGL(QOpenGLWidget):
         glDrawArrays(GL_LINES,0,2)
         glBindVertexArray(0)
 
+    def assignTextures(self,planet,texture_path,ring_texture_path):
+        texture_id = utility.load_texture_qt("textures/"+texture_path)
+        glActiveTexture(GL_TEXTURE0)
+        glBindTexture(GL_TEXTURE_2D, texture_id)
+        planet.texture_unit = 0
+        planet.texture_id = texture_id
+
+        if(ring_texture_path is not None):
+            ring_texture_id = utility.load_texture_qt("textures/"+ring_texture_path)
+            glActiveTexture(GL_TEXTURE1)
+            glBindTexture(GL_TEXTURE_2D,ring_texture_id)
+            planet.ring_texture_id = ring_texture_id
+            planet.ring_texture_unit = 1
 
     def initializeGL(self):
         glEnable(GL_DEPTH_TEST)
@@ -579,18 +592,15 @@ class SolarSystemGL(QOpenGLWidget):
         earth.orbit_angle = math.radians(0)
         earth.program = program_textured
 
-        moon = Planet("Moon", radius=0.27, orbit_radius=2.1, orbit_speed=2.0, parent=earth,    
-                color_left=np.array([0.8, 0.8, 0.78]),
-                color_right=np.array([0.6, 0.6, 0.58]),)
+        moon = TexturedPlanet("Moon", radius=0.27, orbit_radius=2.1, orbit_speed=2.0, parent=earth)
         moon.vao = vao_planet
         moon.orbit_angle = math.radians(0)
-        moon.program = program
+        moon.program = program_textured
 
-        texture_id = utility.load_texture_qt("textures/flat_earth.jpg")
-        glActiveTexture(GL_TEXTURE0)
-        glBindTexture(GL_TEXTURE_2D, texture_id)
-        earth.texture_unit = 0
-        earth.texture_id = texture_id
+        self.assignTextures(moon,"moon.jpg",None)
+
+
+        self.assignTextures(earth,"flat_earth.jpg",None)
 
         mercury = Planet("Mercury", radius=0.5,
                 color_left=np.array([0.7, 0.7, 0.6]),
@@ -602,35 +612,35 @@ class SolarSystemGL(QOpenGLWidget):
         mercury.orbit_angle = math.radians(20)
         mercury.program = program
 
-        venus = Planet("Venus", radius=1.2,
-                color_left=np.array([0.95, 0.85, 0.55]),
-                color_right=np.array([0.9, 0.75, 0.35]),
+        venus = TexturedPlanet("Venus", radius=1.2,
                 orbit_radius=25.6,
                 orbit_speed=1,
                 spin_speed=-1.5)
         venus.vao = vao_planet
         venus.orbit_angle = math.radians(180)
-        venus.program = program
+        venus.program = program_textured
 
-        mars = Planet("Mars", radius=1.0,
-                color_left=np.array([0.85, 0.45, 0.25]),
-                color_right=np.array([0.6, 0.3, 0.18]),
+        self.assignTextures(venus,"venus.jpg",None)
+
+        mars = TexturedPlanet("Mars", radius=1.0,
                 orbit_radius=49.0,
                 orbit_speed=0.73,
                 spin_speed=3.1)
         mars.vao = vao_planet
         mars.orbit_angle = math.radians(100)
-        mars.program = program
+        mars.program = program_textured
 
-        jupiter = Planet("Jupiter", radius=3.0,
-                color_left=np.array([0.95, 0.85, 0.65]),
-                color_right=np.array([0.85, 0.55, 0.25]),
+        self.assignTextures(mars,"mars.jpg",None)
+
+        jupiter = TexturedPlanet("Jupiter", radius=3.0,
                 orbit_radius=63.0,
                 orbit_speed=0.06,
                 spin_speed=4)
         jupiter.vao = vao_planet
         jupiter.orbit_angle = math.radians(270)
-        jupiter.program = program
+        jupiter.program = program_textured
+
+        self.assignTextures(jupiter,"jupiter.jpg",None)
 
         saturn = TexturedPlanet("Saturn", radius=2.5,
                 orbit_radius=78.0,
@@ -642,17 +652,7 @@ class SolarSystemGL(QOpenGLWidget):
         saturn.rings_program = self.program_rings
         saturn.rings = True
 
-        texture_id = utility.load_texture_qt("textures/saturn.jpg")
-        glActiveTexture(GL_TEXTURE0)
-        glBindTexture(GL_TEXTURE_2D, texture_id)
-        saturn.texture_unit = 0
-        saturn.texture_id = texture_id
-
-        ring_texture_id = utility.load_texture_qt("textures/saturn_ring.png")
-        glActiveTexture(GL_TEXTURE1)
-        glBindTexture(GL_TEXTURE_2D,ring_texture_id)
-        saturn.ring_texture_id = ring_texture_id
-        saturn.ring_texture_unit = 1
+        self.assignTextures(saturn,"saturn.jpg","saturn_ring.png")
 
         uranus = Planet("Uranus", radius=1.7,
                 color_left=np.array([0.65, 0.85, 0.95]),
@@ -664,15 +664,15 @@ class SolarSystemGL(QOpenGLWidget):
         uranus.orbit_angle = math.radians(90)
         uranus.program = program
 
-        neptune = Planet("Neptune", radius=1.6,
-                color_left=np.array([0.35, 0.55, 0.95]),
-                color_right=np.array([0.25, 0.35, 0.75]),
+        neptune = TexturedPlanet("Neptune", radius=1.6,
                 orbit_radius=120.0,
                 orbit_speed=0.08,
                 spin_speed=8.0)
         neptune.vao = vao_planet
         neptune.orbit_angle = math.radians(140)
-        neptune.program = program
+        neptune.program = program_textured
+
+        self.assignTextures(neptune,"neptune.jpg",None)
 
         self.planets = [sun,earth,moon,mercury,venus,mars,jupiter,saturn,uranus,neptune]
 

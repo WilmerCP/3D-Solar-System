@@ -625,7 +625,7 @@ class SolarSystemGL(QOpenGLWidget):
         mars = TexturedPlanet("Mars", radius=1.0,
                 orbit_radius=49.0,
                 orbit_speed=0.73,
-                spin_speed=3.1)
+                spin_speed=2.1)
         mars.vao = vao_planet
         mars.orbit_angle = math.radians(100)
         mars.program = program_textured
@@ -635,7 +635,7 @@ class SolarSystemGL(QOpenGLWidget):
         jupiter = TexturedPlanet("Jupiter", radius=3.0,
                 orbit_radius=63.0,
                 orbit_speed=0.06,
-                spin_speed=4)
+                spin_speed=2.5)
         jupiter.vao = vao_planet
         jupiter.orbit_angle = math.radians(270)
         jupiter.program = program_textured
@@ -659,7 +659,7 @@ class SolarSystemGL(QOpenGLWidget):
                 color_right=np.array([0.45, 0.75, 0.95]),
                 orbit_radius=95.0,
                 orbit_speed=0.1,
-                spin_speed=-8)
+                spin_speed=-2.3)
         uranus.vao = vao_planet
         uranus.orbit_angle = math.radians(90)
         uranus.program = program
@@ -667,7 +667,7 @@ class SolarSystemGL(QOpenGLWidget):
         neptune = TexturedPlanet("Neptune", radius=1.6,
                 orbit_radius=120.0,
                 orbit_speed=0.08,
-                spin_speed=8.0)
+                spin_speed=2.0)
         neptune.vao = vao_planet
         neptune.orbit_angle = math.radians(140)
         neptune.program = program_textured

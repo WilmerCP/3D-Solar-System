@@ -163,3 +163,9 @@ class TexturedPlanet(Planet):
         uInner_loc = glGetUniformLocation(self.rings_program,"outer_radius")
         glUniform1f(uInner_loc,2)
 
+        uPlanetRadius_loc = glGetUniformLocation(self.rings_program,"planetRadius")
+        glUniform1f(uPlanetRadius_loc,self.radius)
+
+        uPlanetCenter_loc = glGetUniformLocation(self.rings_program,"planetCenter")
+        glUniform3fv(uPlanetCenter_loc,1,self.position)
+

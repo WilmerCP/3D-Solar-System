@@ -186,3 +186,15 @@ def get_ray_vertices(p1,p2):
     end_point = p1 + p2*200
 
     return np.array([origin[0], origin[1], origin[2], end_point[0], end_point[1], end_point[2]], dtype=np.float32)
+
+
+def vector_at_angle(angle,horizontal_vector):
+    theta = math.radians(angle)
+    horizontal_vector = horizontal_vector / np.linalg.norm(horizontal_vector)
+
+    y = np.array([0,1,0],dtype=np.float32)
+    vector = (
+        math.cos(theta) * horizontal_vector +
+        math.sin(theta) * y
+    )
+    return vector / np.linalg.norm(vector)

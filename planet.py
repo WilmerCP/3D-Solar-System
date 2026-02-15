@@ -33,10 +33,10 @@ class Planet:
         self.previous_position = np.array([self.orbit_radius, 0.0, 0.0], dtype=float)
         self.time = 0.0
 
-    def update(self, delta_time: float):
+    def update(self, time: float):
         """Update orbit and spin angles based on elapsed time."""
-        self.orbit_angle += self.orbit_speed * delta_time
-        self.spin_angle += self.spin_speed * delta_time
+        self.orbit_angle = self.orbit_speed * time
+        self.spin_angle = self.spin_speed * time
 
         # Update planet position based on orbit
         x = self.orbit_radius * np.cos(self.orbit_angle)
@@ -50,7 +50,7 @@ class Planet:
             self.previous_position = self.position
             self.position = local_position
 
-        self.time = delta_time
+        self.time = time
 
     def get_model_matrix(self):
         """Return a model matrix for rendering this planet (numpy 4x4)."""

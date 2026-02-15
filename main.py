@@ -2,7 +2,11 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from interface import *
 from glwidget import SolarSystemGL
 from PyQt5.QtWidgets import QShortcut
-from PyQt5.QtGui import QKeySequence
+from PyQt5.QtGui import QKeySequence, QSurfaceFormat
+
+format = QSurfaceFormat()
+format.setSamples(4)  # 4x MSAA
+QSurfaceFormat.setDefaultFormat(format)
 
 app = QtWidgets.QApplication([])
 

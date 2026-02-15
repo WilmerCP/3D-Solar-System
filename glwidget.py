@@ -52,23 +52,46 @@ class SolarSystemGL(QOpenGLWidget):
         self.singleClick = False
         self.selectedPlanet = 1
         self.mode = MODE_NORMAL
+        self.zoom = 18
+
+    def wheelEvent(self, event):
+        if self.mode != MODE_NORMAL:
+            delta = event.angleDelta().y()  # Positive for scroll up, negative for scroll down
+            zoom = self.zoom + (delta * 0.01)
+            self.zoom = np.clip(zoom,5,100)
+        
 
     def toggleMode(self):
         if self.mode >= 2:
             self.mode = 0
         else:
             self.mode += 1
+        
+        self.fix_zoom()
 
-    def toggleSelection(self):
+    def fix_zoom(self):
+        if(self.selectedPlanet is not None):
+                self.zoom = self.planets[self.selectedPlanet].radius * 8
+                if self.planets[self.selectedPlanet].rings:
+                    self.zoom += 15
+
+    def toggleSelection(self,step):
+
         if self.selectedPlanet is not None:
-            if self.selectedPlanet >= 9:
+            self.selectedPlanet += step
+
+            if self.selectedPlanet == 2: 
+                self.selectedPlanet += step #Do not focus on the moon
+
+            if self.selectedPlanet >= len(self.planets):
                 self.selectedPlanet = 0
-            if self.selectedPlanet == 1:
-                self.selectedPlanet +=2
-            else:
-                self.selectedPlanet += 1
-        elif self.selectedPlanet is None:
+            elif self.selectedPlanet < 0: 
+                self.selectedPlanet = len(self.planets) - 1 
+        else:
             self.selectedPlanet = 1
+
+        self.fix_zoom()
+
 
     def detectSelection(self,x_ndc,y_ndc):
 
@@ -137,9 +160,9 @@ class SolarSystemGL(QOpenGLWidget):
         elif event.key() == Qt.Key_P:
             self.toggleMode()
         elif event.key() == Qt.Key_Right:
-            self.toggleSelection()
+            self.toggleSelection(1)
         elif event.key() == Qt.Key_Left:
-            self.toggleSelection()
+            self.toggleSelection(-1)
         else:
             self.pressed_keys.add(event.key())
 
@@ -213,7 +236,11 @@ class SolarSystemGL(QOpenGLWidget):
                 direction = self.planets[self.selectedPlanet].get_velocity_vector()
             else:
                 direction = np.array([0,0,1],dtype=np.float32)
-            camera = target - direction * 18  + up * 5
+
+            offsetVector = geometry.vector_at_angle(20,direction)
+            offsetVector *= self.zoom
+
+            camera = target + offsetVector
 
             self.view_matrix = geometry.get_look_at_matrix(camera, target, up)
        
@@ -490,7 +517,7 @@ class SolarSystemGL(QOpenGLWidget):
         glEnable(GL_DEPTH_TEST)
         glClearColor(0.0, 0.0, 0.0, 1.0)
 
-        self.last_time = time.time()
+        #self.last_time = time.time()
 
         # Vertex shader with color source code
         vertex_shader_source = utility.load_shader_source("shaders/planet_vertex.glsl")
@@ -602,15 +629,15 @@ class SolarSystemGL(QOpenGLWidget):
 
         self.assignTextures(earth,"flat_earth.jpg",None)
 
-        mercury = Planet("Mercury", radius=0.5,
-                color_left=np.array([0.7, 0.7, 0.6]),
-                color_right=np.array([0.5, 0.4, 0.3]),
+        mercury = TexturedPlanet("Mercury", radius=0.5,
                 orbit_radius=16.0,
                 orbit_speed=1.0,
                 spin_speed=2)
         mercury.vao = vao_planet
         mercury.orbit_angle = math.radians(20)
-        mercury.program = program
+        mercury.program = program_textured
+
+        self.assignTextures(mercury,"mercury.jpg",None)
 
         venus = TexturedPlanet("Venus", radius=1.2,
                 orbit_radius=25.6,
@@ -720,8 +747,8 @@ class SolarSystemGL(QOpenGLWidget):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
         current_time = time.time()
-        delta_time = current_time - self.last_time
-        self.last_time = current_time
+        #delta_time = current_time - self.last_time
+        #self.last_time = current_time
         
         #Clear the screen
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -729,7 +756,7 @@ class SolarSystemGL(QOpenGLWidget):
         self.paint_background()
 
         for p in self.planets:
-            self.draw_planet(p,delta_time)
+            self.draw_planet(p,current_time)
 
         ##if self.selectedPlanet is not None and self.ray_points is not None:
         ##    self.draw_ray()

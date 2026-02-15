@@ -17,6 +17,12 @@ MODE_NORMAL = 0
 MODE_FOLLOW = 1
 MODE_FOCUS = 2
 
+mode_names = {
+    MODE_NORMAL: "Normal",
+    MODE_FOLLOW: "Follow",
+    MODE_FOCUS: "Focus"
+}
+
 class SolarSystemGL(QOpenGLWidget):
 
     back_to_menu = pyqtSignal()
@@ -46,19 +52,28 @@ class SolarSystemGL(QOpenGLWidget):
         self.near_clipping = 0.1
         self.far_clipping = 800
         self.eye_position = np.array([0,40,150],dtype=np.float32)
+        self.fixed_camera = np.array([0,40,150],dtype=np.float32)
         self.x_ndc = None
         self.y_ndc = None
         self.fix_navigation = False
         self.singleClick = False
-        self.selectedPlanet = 1
+        self.selectedPlanet = None
         self.mode = MODE_NORMAL
         self.zoom = 18
+        self.scrollAmount = 0
+        self.focusVerticalAngle = 20
+        self.focusHorizontalAngle = 0
+        self.ray_points = None
 
     def wheelEvent(self, event):
-        if self.mode != MODE_NORMAL:
-            delta = event.angleDelta().y()  # Positive for scroll up, negative for scroll down
-            zoom = self.zoom + (delta * 0.01)
+
+        delta = event.angleDelta().y()  # Positive for scroll up, negative for scroll down
+        if self.mode == MODE_FOCUS:
+            zoom = self.zoom + (delta * 0.02)
             self.zoom = np.clip(zoom,5,100)
+
+        else:
+            self.scrollAmount += delta * 0.02
         
 
     def toggleMode(self):
@@ -68,6 +83,11 @@ class SolarSystemGL(QOpenGLWidget):
             self.mode += 1
         
         self.fix_zoom()
+        self.fix_view_angles()
+
+    def fix_view_angles(self):
+        self.focusVerticalAngle = 20
+        self.focusHorizontalAngle = 0
 
     def fix_zoom(self):
         if(self.selectedPlanet is not None):
@@ -91,6 +111,7 @@ class SolarSystemGL(QOpenGLWidget):
             self.selectedPlanet = 1
 
         self.fix_zoom()
+        self.fix_view_angles()
 
 
     def detectSelection(self,x_ndc,y_ndc):
@@ -99,6 +120,11 @@ class SolarSystemGL(QOpenGLWidget):
         inverse_view = np.linalg.inv(self.view_matrix)
         inverse_map = inverse_view @ inverse_projection
 
+        eye_vector = self.eye_position
+
+        if self.mode == MODE_FOCUS:
+            eye_vector = self.fixed_camera
+
         v1 = np.array([x_ndc,y_ndc,1,1],dtype=np.float32)
 
         v1_transformed = np.dot(inverse_map,v1)
@@ -106,9 +132,9 @@ class SolarSystemGL(QOpenGLWidget):
 
         v1_3d = v1_transformed[:3] / v1_transformed[3]
 
-        dir = v1_3d - self.eye_position
+        dir = v1_3d - eye_vector
         dir = dir / np.linalg.norm(dir)
-        origin = self.eye_position
+        origin = eye_vector
 
         a = np.dot(dir,dir)
 
@@ -137,17 +163,21 @@ class SolarSystemGL(QOpenGLWidget):
                         planetHit = self.planets.index(p)
                         distance = t
 
+        points = geometry.get_ray_vertices(origin,dir)
+        self.ray_points = points
 
         if planetHit is not None:
             self.selectedPlanet = planetHit
             self.fix_zoom()
+
+            if self.mode == MODE_NORMAL:
+                self.mode = MODE_FOLLOW
+
             print("Planet {} was selected".format(self.planets[planetHit].name))
-            points = geometry.get_ray_vertices(origin,dir)
-            print("p1 = {} {} {}".format(points[0],points[1],points[2]))
-            print("p2 = {} {} {}".format(points[3],points[4],points[5]))
-            self.ray_points = points
+            
         else:
             self.selectedPlanet = None
+            self.mode = MODE_NORMAL
             print("No planet selected")
             
 
@@ -181,8 +211,7 @@ class SolarSystemGL(QOpenGLWidget):
         y = event.y()
 
 
-        if self.mode == MODE_FOCUS or self.mode == MODE_FOLLOW:
-            self.detectSelection(self.x_ndc, self.y_ndc)
+        self.detectSelection(self.x_ndc, self.y_ndc)
 
         self.x_ndc = None
         self.y_ndc = None
@@ -238,10 +267,27 @@ class SolarSystemGL(QOpenGLWidget):
             else:
                 direction = np.array([0,0,1],dtype=np.float32)
 
-            offsetVector = geometry.vector_at_angle(20,direction)
+            if Qt.Key_W in self.pressed_keys:
+                self.focusVerticalAngle = max(-89, min(self.focusVerticalAngle + 1, 89))
+
+            if Qt.Key_S in self.pressed_keys:
+                self.focusVerticalAngle = max(-89, min(self.focusVerticalAngle - 1, 89))
+
+            if Qt.Key_A in self.pressed_keys:
+                self.focusHorizontalAngle = self.focusHorizontalAngle + 1
+
+            if Qt.Key_D in self.pressed_keys:
+                self.focusHorizontalAngle = self.focusHorizontalAngle - 1
+
+            direction = geometry.rotate_horizontal_vector(direction,self.focusHorizontalAngle)
+
+            offsetVector = geometry.vector_at_angle(self.focusVerticalAngle,direction)
             offsetVector *= self.zoom
 
             camera = target + offsetVector
+
+            self.fixed_camera = camera
+
 
             self.view_matrix = geometry.get_look_at_matrix(camera, target, up)
        
@@ -257,6 +303,21 @@ class SolarSystemGL(QOpenGLWidget):
         if self.mode == MODE_FOLLOW and self.selectedPlanet is not None:
             target = self.planets[self.selectedPlanet].position
             up = np.array([0,1,0],dtype=np.float32)
+
+            if self.scrollAmount != 0:
+
+                distance = np.linalg.norm(target - self.eye_position)
+
+                forward = target - self.eye_position
+                forward = forward / np.linalg.norm(forward)
+
+                if distance > 10 and self.scrollAmount > 0:
+                    self.eye_position += forward * self.scrollAmount
+
+                elif self.scrollAmount < 0:
+                    self.eye_position += forward * self.scrollAmount
+
+                self.scrollAmount = 0
 
             self.view_matrix = geometry.get_look_at_matrix(self.eye_position, target, up)
        
@@ -313,7 +374,13 @@ class SolarSystemGL(QOpenGLWidget):
             forward = geometry.calulate_forward_vector(self.camera_pitch,self.camera_yaw)
             self.eye_position -= (forward * 0.4)
 
+
+        if self.scrollAmount != 0:
+            self.eye_position += forward * self.scrollAmount
+            self.scrollAmount = 0
+
         target = self.eye_position + forward
+
 
         self.view_matrix = geometry.get_look_at_matrix(self.eye_position,target,up)
        
@@ -499,6 +566,8 @@ class SolarSystemGL(QOpenGLWidget):
         glLineWidth(2.0)
         glDrawArrays(GL_LINES,0,2)
         glBindVertexArray(0)
+        glUseProgram(0)
+        glBindBuffer(GL_ARRAY_BUFFER, 0)
 
     def assignTextures(self,planet,texture_path,ring_texture_path):
         texture_id = utility.load_texture_qt("textures/"+texture_path)
@@ -632,7 +701,7 @@ class SolarSystemGL(QOpenGLWidget):
 
         mercury = TexturedPlanet("Mercury", radius=0.5,
                 orbit_radius=16.0,
-                orbit_speed=1.0,
+                orbit_speed=0.9,
                 spin_speed=2)
         mercury.vao = vao_planet
         mercury.orbit_angle = math.radians(20)
@@ -716,22 +785,48 @@ class SolarSystemGL(QOpenGLWidget):
         self.projection_matrix = projection_matrix
         
 
-    def writeText(self,text,x,y):
+    def writeText(self):
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        painter.setFont(QFont("Arial", 20))
+        painter.setFont(QFont("Arial", 12))
+
+        mode_text = mode_names.get(self.mode, "Unknown") + " mode"
+
+        x = self.width 
+        y = self.height
 
         metrics = painter.fontMetrics()
-        text_width = metrics.horizontalAdvance(text)  
-        centered_x = x - text_width / 2
+        text_width = metrics.horizontalAdvance(mode_text)  
+        centered_x = x - text_width - 10
 
-        painter.fillRect(int(centered_x)-5, int(y)-25, text_width + 11, 31, QColor(0,0,0,150))
+        text_height = metrics.height()
+        centered_y = y - text_height
+
         painter.setPen(Qt.black)
-        painter.drawText(int(centered_x)+1,int(y)+1,text)
+        painter.drawText(int(centered_x)+1,int(centered_y)+1,mode_text)
 
         painter.setPen(Qt.white)
-        painter.drawText(int(centered_x),int(y),text)
+        painter.drawText(int(centered_x),int(centered_y),mode_text)
+
+        if self.selectedPlanet is not None:
+
+            painter.setFont(QFont("Arial", 20))
+            planet_name = self.planets[self.selectedPlanet].name
+
+            x = self.width / 2
+            y = self.height * 0.8
+
+            metrics = painter.fontMetrics()
+            text_width = metrics.horizontalAdvance(planet_name)  
+            centered_x = x - (text_width/2)
+
+            painter.fillRect(int(centered_x)-5, int(y)-25, text_width + 11, 31, QColor(0,0,0,150))
+            painter.setPen(Qt.black)
+            painter.drawText(int(centered_x)+1,int(y)+1,planet_name)
+
+            painter.setPen(Qt.white)
+            painter.drawText(int(centered_x),int(y),planet_name)
 
 
         painter.end()
@@ -751,22 +846,17 @@ class SolarSystemGL(QOpenGLWidget):
         #delta_time = current_time - self.last_time
         #self.last_time = current_time
         
-        #Clear the screen
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
         self.paint_background()
 
         for p in self.planets:
             self.draw_planet(p,current_time)
 
-        ##if self.selectedPlanet is not None and self.ray_points is not None:
-        ##    self.draw_ray()
+        #if self.ray_points is not None:
+        #    self.draw_ray()
 
-        if self.mode != MODE_NORMAL and self.selectedPlanet is not None:
+        self.writeText()
 
-            x = self.width / 2
-            y = self.height * 0.8
-            self.writeText(self.planets[self.selectedPlanet].name,x,y)
         
 
 

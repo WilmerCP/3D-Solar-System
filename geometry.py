@@ -157,6 +157,16 @@ def calulate_forward_vector(pitch,yaw):
 
     return forward
 
+def calculate_ortogonal_vector(vector):
+    
+    up = np.array([0,1,0],dtype=np.float32)
+
+    ortogonal = np.cross(up,vector) 
+
+    return ortogonal / np.linalg.norm(ortogonal)
+
+
+
 
 def calculate_turn_amout(coordinate):
 
@@ -198,3 +208,16 @@ def vector_at_angle(angle,horizontal_vector):
         math.sin(theta) * y
     )
     return vector / np.linalg.norm(vector)
+
+
+def rotate_horizontal_vector(vector,angle):
+    theta = math.radians(angle)
+
+    z = vector[0] * math.sin(theta) + vector[2] * math.cos(theta)
+    x = vector[0] * math.cos(theta) - vector[2] * math.sin(theta)
+
+    horizontal_vector = np.array([x,0,z],dtype=np.float32)
+    
+    return horizontal_vector / np.linalg.norm(horizontal_vector)
+
+

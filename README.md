@@ -110,6 +110,14 @@ Each planet is represented with a bounding sphere using its world position and r
 - Procedural Noise
 - Smoothstep Edge Fading
 
+# 🌓 Saturn’s Ring Shadow Projection
+
+The shader performs a ray–sphere intersection test between each ring fragment and the planet’s bounding sphere. 
+
+If the fragment is behind the planet relative to the Sun, a smooth shadow is applied using the penetration depth and the discriminant of the intersection. 
+
+This creates a soft, physically accurate shadow on the rings, enhancing visual realism.
+
 ## 🧮 MVP Matrix
 
 ### Projection Matrix
@@ -122,9 +130,8 @@ Each planet is represented with a bounding sphere using its world position and r
 Defines the viewing frustum and maps points into normalized device coordinates.
 
 ### View Matrix
-- Translation from origin
-- Pitch rotation for elevated camera angle
-- Updated only when user input changes
+- Look-at matrix is used for flexibility between view modes
+- Constructed using camera position, target and up vectors
 
 ### Model Matrix
 - Unique for each object

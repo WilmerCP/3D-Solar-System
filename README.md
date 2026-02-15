@@ -4,87 +4,48 @@
 This project is a **3D Solar System simulation** developed in **Python** using **OpenGL with the programmable pipeline**.  
 The graphical user interface is implemented with **PyQt**, and rendering is performed inside a `QOpenGLWidget`.
 
+
+<img src="https://github.com/WilmerCP/3D-Solar-System/blob/master/screenshots/Menu.png" width="500">
+
 ---
 
 ## 🚀 Features
 - ☀️ Sun positioned at the center of world space
 - 🪐 All planets orbiting around the Sun
 - 🌙 Moon orbiting around the Earth
+- 🪐 Saturn's rings with shadow projection
 - 💡 Lambert shading for realistic light diffusion from the Sun
 - 🔵 Orbit rings rendered for every planet
 - 🌌 Space background texture
-- 🎮 Camera controls:
+- 🎮 Scene exploration with flexible camera controls
+
+---
+
+<img src="https://github.com/WilmerCP/3D-Solar-System/blob/master/screenshots/SolarSystem.png" width="500">
+
+## 👁️ Modes
+
+- Change between 3 visualization modes with `P` key:
+- Select a planet anytime by clicking on it
+- Click anywhere else to discard planet selection
+
+### 🧭 Explore mode: 
+- Move freely around the scene
   - Pitch and Yaw movement with `W` `A` `S` `D` keys
-  - Zoom in and out using left and right click
-- 👁️ Change between 3 visualization modes with `P` key:
-  - Explore mode: move freely around the scene
-  - Focus mode: up-close visualization of a planet
-  - Follow mode: the camera follows the movement of the planet
+  - Zoom in and out using left and right click or mouse wheel
+  - Fix camera orientation with `F` key
 
----
+### 🎥 Follow mode: 
+- The camera follows the movement of the planet
+  - Zoom in and out using mouse wheel
 
-## 🧱 Classes
+### 🔍 Focus mode: 
+- Up-close visualization of a planet
+  - Pivot around the planet with `W` `A` `S` `D` keys
+  - Zoom in and out using mouse wheel
 
-### Planet
-Represents a general planet and contains all parameters required for rendering.  
-Uses two colors passed to the fragment shader to generate a gradient effect.
 
-#### Attributes
-- Color 1
-- Color 2
-- Radius
-- Orbit radius
-- Orbit speed
-- Spin speed
-- Vertex Array Object (VAO)
-- Shader Program
-- Parent object
-- Position
-
-#### Methods
-- **update(dt)**
-  - Receives the elapsed time between frames (milliseconds)
-  - Updates orbit angle, spin angle, and world position
-
-- **get_model_matrix()**
-  - Computes the model matrix based on radius, orbit radius, angles, and position
-  - Sent to the vertex shader
-
-- **update_uniforms()**
-  - Uploads color values to shader uniforms
-  - Shared shader program is reused with different parameters
-
----
-
-### TexturedPlanet
-Child class of `Planet` that renders planets using textures instead of color grading.
-
-#### Unique Attributes
-- Texture unit
-- Texture ID
-
-#### Overridden Methods
-- **update_uniforms()**
-  - Activates the correct texture unit
-  - Updates shader uniforms for texture rendering
-
----
-
-### Sun
-Child class of `Planet` that includes advanced procedural shading effects.
-
-#### Effects Implemented
-- Limb Darkening
-- Rim Glow
-- Procedural Noise
-- Smoothstep Edge Fading
-
-#### Unique Attributes
-- Time
-
-#### Overridden Methods
-- **update_uniforms()**
-  - Sends elapsed time to fragment shader for procedural calculations
+<img src="https://github.com/WilmerCP/3D-Solar-System/blob/master/screenshots/Controls.png" width="500">
 
 ---
 
@@ -107,6 +68,8 @@ Each frame performs:
 2. Iterate through planet array:
    - Render planets using `GL_TRIANGLE_STRIP`
    - Render orbit rings using `GL_LINE_STRIP`
+   - Render saturn's rings using `GL_TRIANGLE_STRIP`
+3. Write text on the screen with QPainter()
 
 ---
 
@@ -128,6 +91,8 @@ $transpose(inverse(ModelMatrix)) * normal$
 
 - Result is passed to the fragment shader for lighting calculations
 
+<img src="https://github.com/WilmerCP/3D-Solar-System/blob/master/screenshots/FocusMode.png" width="500">
+
 ---
 ## 🎯 Ray Casting
 
@@ -138,6 +103,12 @@ When the user clicks on the screen, a ray is generated from the camera position 
 Each planet is represented with a bounding sphere using its world position and radius. A ray–sphere intersection test is performed against all planets, and the closest intersected object becomes the selected element.
 
 ---
+
+## ☀️ Sun with Procedural Shading effects
+- Limb Darkening
+- Rim Glow
+- Procedural Noise
+- Smoothstep Edge Fading
 
 ## 🧮 MVP Matrix
 

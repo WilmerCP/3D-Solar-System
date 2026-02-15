@@ -91,8 +91,6 @@ $transpose(inverse(ModelMatrix)) * normal$
 
 - Result is passed to the fragment shader for lighting calculations
 
-<img src="https://github.com/WilmerCP/3D-Solar-System/blob/master/screenshots/FocusMode.png" width="500">
-
 ---
 ## 🎯 Ray Casting
 
@@ -117,6 +115,8 @@ The shader performs a ray–sphere intersection test between each ring fragment 
 If the fragment is behind the planet relative to the Sun, a smooth shadow is applied using the penetration depth and the discriminant of the intersection. 
 
 This creates a soft, physically accurate shadow on the rings, enhancing visual realism.
+
+<img src="https://github.com/WilmerCP/3D-Solar-System/blob/master/screenshots/FocusMode.png" width="500">
 
 ## 🧮 MVP Matrix
 

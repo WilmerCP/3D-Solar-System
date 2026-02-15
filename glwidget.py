@@ -140,6 +140,7 @@ class SolarSystemGL(QOpenGLWidget):
 
         if planetHit is not None:
             self.selectedPlanet = planetHit
+            self.fix_zoom()
             print("Planet {} was selected".format(self.planets[planetHit].name))
             points = geometry.get_ray_vertices(origin,dir)
             print("p1 = {} {} {}".format(points[0],points[1],points[2]))
